@@ -1,0 +1,11 @@
+[
+    {
+        "id": "sticky_cats",
+        "name": "Sticky Cats",
+        "version": "1.0.0",
+        "exe_path": "Sticky Cats.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/sticky_cats_cover.jpg",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_sticky_cats/sticky_cats.zip",
+        "size_mb": 31.32
+    }
+]

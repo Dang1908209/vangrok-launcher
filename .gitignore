@@ -1,0 +1,12 @@
+# Bỏ qua thư mục chứa game đã cài đặt
+installed_games/
+
+# Bỏ qua các file nén tạm thời
+*.zip
+*.rar
+
+# Bỏ qua cache của Python
+__pycache__/
+*.pyc
+
+token_config.py
