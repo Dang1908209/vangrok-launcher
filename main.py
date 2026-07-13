@@ -1,3 +1,4 @@
+# main.py
 import sys
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont
@@ -16,11 +17,13 @@ def main():
     # Khai báo sẵn các biến chứa thông tin user
     current_username = ""
     current_is_admin = False
+    current_is_verified = False  # [MỚI] Khởi tạo trạng thái xác thực ban đầu
     
     if session:
         auto_login = True
         current_username = session.get("username")
         current_is_admin = session.get("is_admin", False)
+        current_is_verified = session.get("is_verified", False)  # [MỚI] Đọc từ session cũ nếu có
     
     # Vòng lặp quản lý luồng sống của ứng dụng (Đăng nhập -> Launcher -> Đăng xuất -> Đăng nhập...)
     while True:
@@ -38,12 +41,18 @@ def main():
             # Lấy thông tin tài khoản sau khi LoginWindow chạy xong và thành công
             current_username = login_window.username
             current_is_admin = login_window.is_admin
+            current_is_verified = login_window.is_verified  # [MỚI] Lấy từ màn hình Login vừa đăng nhập
             
-        # Khởi tạo và hiển thị Launcher chính với data đã xác thực
+        # Khởi tạo Launcher chính với các tham số cũ để tránh lỗi TypeError
         main_window = MainWindow(
             username=current_username, 
             is_admin=current_is_admin
         )
+        
+        # [ĐÃ SỬA] Gán động trạng thái verify vào thuộc tính của main_window thay vì ép qua hàm khởi tạo
+        main_window.is_verified = current_is_verified  
+        
+        # Hiển thị Launcher chính
         main_window.show()
         
         # Chạy vòng lặp sự kiện cho MainWindow (Code sẽ "dừng" ở đây cho đến khi user tắt/đăng xuất launcher)

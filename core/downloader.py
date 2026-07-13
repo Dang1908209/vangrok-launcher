@@ -1,3 +1,4 @@
+# downloader.py
 import os
 import requests
 import zipfile
@@ -23,32 +24,44 @@ class GameDownloader(QThread):
             # Tạo thư mục installed_games tổng nếu chưa tồn tại
             os.makedirs(self.installed_games_dir, exist_ok=True)
             
-            # 1. Tiến hành gửi request tải file stream dữ liệu
-            response = requests.get(self.download_url, stream=True, timeout=15)
-            response.raise_for_status() # Kích hoạt Exception nếu gặp lỗi HTTP (404, 500, ...)
-            
-            total_size = int(response.headers.get('content-length', 0))
-            
-            # Tải và lưu tạm file .zip xuống đĩa
-            with open(self.zip_path, 'wb') as file:
-                downloaded = 0
-                for chunk in response.iter_content(chunk_size=1024*1024): # Đọc từng đoạn 1MB
-                    if chunk:
-                        file.write(chunk)
-                        downloaded += len(chunk)
-                        if total_size > 0:
-                            percent = int((downloaded / total_size) * 100)
-                            # Giới hạn giá trị trong khoảng từ 0 đến 99% khi đang tải
-                            self.progress_signal.emit(min(percent, 99))
+            # ==========================================================
+            # GIAI ĐOẠN 1: TẢI FILE TỪ SERVER (Chiếm 0% -> 90% tiến độ)
+            # ==========================================================
+            with requests.get(self.download_url, stream=True, timeout=15) as response:
+                response.raise_for_status() # Kích hoạt Exception nếu gặp lỗi HTTP
+                total_size = int(response.headers.get('content-length', 0))
+                
+                with open(self.zip_path, 'wb') as file:
+                    downloaded = 0
+                    for chunk in response.iter_content(chunk_size=1024*1024): # Đọc từng đoạn 1MB
+                        if chunk:
+                            file.write(chunk)
+                            downloaded += len(chunk)
+                            if total_size > 0:
+                                # Quy đổi tiến độ tải xuống vào khoảng 0% - 90%
+                                percent = int((downloaded / total_size) * 90)
+                                self.progress_signal.emit(min(percent, 90))
 
-            # 2. Thực hiện giải nén file ZIP
+            # ==========================================================
+            # GIAI ĐOẠN 2: GIẢI NÉN FILE ZIP (Chiếm 90% -> 99% tiến độ)
+            # ==========================================================
             if os.path.exists(self.zip_path):
                 with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
-                    # Tạo thư mục con riêng biệt dành cho game này
                     os.makedirs(self.install_dir, exist_ok=True)
-                    zip_ref.extractall(self.install_dir)
+                    
+                    # Lấy danh sách toàn bộ file/thư mục con bên trong cục ZIP
+                    file_list = zip_ref.infolist()
+                    total_files = len(file_list)
+                    
+                    # Giải nén từng file một để tính toán được phần trăm tiến độ
+                    for idx, member in enumerate(file_list):
+                        zip_ref.extract(member, self.install_dir)
+                        if total_files > 0:
+                            # Quy đổi tiến độ giải nén vào khoảng 90% - 99%
+                            extract_percent = 90 + int(((idx + 1) / total_files) * 9)
+                            self.progress_signal.emit(min(extract_percent, 99))
                 
-                # 3. Dọn dẹp bộ nhớ đệm (Xóa file .zip tạm)
+                # 3. Dọn dẹp bộ nhớ đệm (Xóa file .zip tạm sau khi giải nén xong)
                 os.remove(self.zip_path)
                 
                 # Hoàn tất quy trình cài đặt sạch sẽ
@@ -64,4 +77,4 @@ class GameDownloader(QThread):
                     os.remove(self.zip_path)
                 except:
                     pass
-            self.finished_signal.emit(False, str(e))
+            self.finished_signal.emit(False, f"Lỗi cài đặt: {str(e)}")

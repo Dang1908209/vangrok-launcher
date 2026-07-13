@@ -7,5 +7,16 @@
         "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/cursed_apartment_cover.png",
         "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_cursed_apartment_1_0_0/cursed_apartment.zip",
         "size": 492.85
+    },
+    {
+        "id": "sticky_cats",
+        "name": "Sticky Cats",
+        "version": "1.0.0",
+        "description": "Game về những chú mèo đấu đá lẫn nhau để giành con cá",
+        "video_url": "https://www.youtube.com/watch?v=ohPWwpeXy3U",
+        "exe_path": "Sticky Cats.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/sticky_cats_cover.png",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_sticky_cats_1_0_0/sticky_cats.zip",
+        "size": 31.32
     }
 ]

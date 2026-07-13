@@ -36,13 +36,15 @@ class UploadGameWorker(QThread):
     finished_signal = pyqtSignal(bool, str)
     log_signal = pyqtSignal(str)  # MỚI THÊM: Bắn log ra Console
 
-    def __init__(self, game_name, game_version, game_folder, exe_name, cover_path):
+    def __init__(self, game_name, game_version, game_folder, exe_name, cover_path, video_url, description):
         super().__init__()
         self.game_name = game_name
         self.game_version = game_version
         self.game_folder = game_folder
         self.exe_name = exe_name
         self.cover_path = cover_path
+        self.video_url = video_url          # Thêm biến lưu Video
+        self.description = description      # Thêm biến lưu Mô tả
 
     def run(self):
         try:
@@ -99,6 +101,8 @@ class UploadGameWorker(QThread):
                 "id": safe_name,
                 "name": self.game_name,
                 "version": self.game_version, 
+                "description": self.description,   # Lưu vào JSON
+                "video_url": self.video_url,       # Lưu vào JSON
                 "exe_path": self.exe_name,
                 "cover": cover_url,
                 "download_url": download_url,
@@ -137,7 +141,6 @@ class UploadGameWorker(QThread):
             self.finished_signal.emit(True, "Đã thêm game và upload thành công!")
 
         except Exception as e:
-            # Lấy toàn bộ dấu vết mã lỗi thực tế thay vì chỉ lấy chữ
             error_trace = traceback.format_exc()
             self.log_signal.emit(f"\n❌ LỖI NGHIÊM TRỌNG:\n{error_trace}")
             self.finished_signal.emit(False, "Quá trình thất bại! Vui lòng đọc dòng lỗi màu đỏ bên bảng Console.")
@@ -150,7 +153,7 @@ class AddGameDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Admin: Thêm Game Mới")
-        self.resize(950, 520)  # MỞ RỘNG CỬA SỔ ĐỂ CHỨA CONSOLE
+        self.resize(950, 600)  # Nới rộng cửa sổ để chứa khung Mô tả
         self.folder_path = ""
         self.cover_path = ""
         
@@ -158,7 +161,6 @@ class AddGameDialog(QDialog):
         self.apply_stylesheet()
 
     def setup_ui(self):
-        # Master Layout chia 2 cột: Trái (Form) - Phải (Console)
         master_layout = QHBoxLayout(self)
         master_layout.setContentsMargins(20, 20, 20, 20)
         master_layout.setSpacing(20)
@@ -177,7 +179,7 @@ class AddGameDialog(QDialog):
         content_layout = QHBoxLayout()
         content_layout.setSpacing(20)
 
-        # Hình ảnh
+        # --- Hình ảnh ---
         left_layout = QVBoxLayout()
         self.img_preview = QLabel("NO COVER")
         self.img_preview.setObjectName("img_preview")
@@ -193,31 +195,49 @@ class AddGameDialog(QDialog):
         left_layout.addStretch()
         content_layout.addLayout(left_layout)
 
-        # Input
+        # --- Input ---
         right_layout = QVBoxLayout()
-        right_layout.setSpacing(12)
+        right_layout.setSpacing(8)
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Tên Game (VD: Vangrok RPG)")
         
         self.ver_input = QLineEdit()
-        self.ver_input.setPlaceholderText("Phiên bản (VD: 1.0.0)")
+        self.ver_input.setPlaceholderText("Không bắt buộc (Mặc định: 1.0.0)")
         
         self.exe_input = QLineEdit()
         self.exe_input.setPlaceholderText("File khởi chạy (VD: game.exe)")
         
-        right_layout.addWidget(QLabel("Tên trò chơi:"))
+        self.video_input = QLineEdit()
+        self.video_input.setPlaceholderText("Không bắt buộc (VD: Link YouTube / .mp4)")
+
+        self.desc_input = QTextEdit()
+        self.desc_input.setObjectName("desc_input")
+        self.desc_input.setPlaceholderText("Nhập mô tả về game (Không bắt buộc)...")
+        self.desc_input.setMaximumHeight(70) # Hạn chế chiều cao khung mô tả
+        
+        # Thêm các Label và Input vào cột phải
+        right_layout.addWidget(QLabel("Tên trò chơi (*):"))
         right_layout.addWidget(self.name_input)
+        
         right_layout.addWidget(QLabel("Phiên bản:"))
         right_layout.addWidget(self.ver_input)
-        right_layout.addWidget(QLabel("File thực thi (EXE):"))
+        
+        right_layout.addWidget(QLabel("File thực thi (*):"))
         right_layout.addWidget(self.exe_input)
+        
+        right_layout.addWidget(QLabel("Link Video Trailer:"))
+        right_layout.addWidget(self.video_input)
+
+        right_layout.addWidget(QLabel("Mô tả Game:"))
+        right_layout.addWidget(self.desc_input)
         
         self.folder_frame = QFrame()
         self.folder_frame.setObjectName("folder_frame")
         folder_layout = QVBoxLayout(self.folder_frame)
+        folder_layout.setContentsMargins(10, 10, 10, 10)
         
-        self.lbl_folder_info = QLabel("📁 Chưa chọn thư mục game")
+        self.lbl_folder_info = QLabel("📁 Chưa chọn thư mục game (*)")
         self.lbl_folder_info.setWordWrap(True)
         self.lbl_folder_info.setStyleSheet("color: #aaaaaa; font-style: italic;")
         
@@ -231,8 +251,8 @@ class AddGameDialog(QDialog):
         
         right_layout.addWidget(self.folder_frame)
         right_layout.addStretch()
+        
         content_layout.addLayout(right_layout)
-
         main_layout.addLayout(content_layout)
 
         self.lbl_status = QLabel("Trạng thái: Sẵn sàng")
@@ -250,7 +270,6 @@ class AddGameDialog(QDialog):
         self.btn_start.clicked.connect(self.start_process)
         main_layout.addWidget(self.btn_start)
 
-        # Thêm khung Form vào cột Trái của Master (Chiếm 5 phần)
         master_layout.addWidget(left_widget, stretch=5)
 
 
@@ -267,10 +286,9 @@ class AddGameDialog(QDialog):
         self.console_output = QTextEdit()
         self.console_output.setReadOnly(True)
         self.console_output.setObjectName("console_output")
-        self.console_output.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap) # Cho cuộn ngang nếu dòng dài
+        self.console_output.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap) 
         console_layout.addWidget(self.console_output)
 
-        # Thêm khung Console vào cột Phải của Master (Chiếm 4 phần)
         master_layout.addWidget(right_widget, stretch=4)
 
 
@@ -305,6 +323,18 @@ class AddGameDialog(QDialog):
                 font-size: 13px;
             }
             QLineEdit:focus {
+                border: 1px solid #e53935;
+            }
+            QTextEdit#desc_input {
+                background-color: #1e1e1e;
+                color: white;
+                border: 1px solid #444444;
+                padding: 8px;
+                border-radius: 4px;
+                font-size: 13px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }
+            QTextEdit#desc_input:focus {
                 border: 1px solid #e53935;
             }
             QPushButton {
@@ -342,6 +372,7 @@ class AddGameDialog(QDialog):
                 background-color: #222222;
                 border: 1px solid #444444;
                 border-radius: 6px;
+                margin-top: 5px;
             }
             QProgressBar {
                 background-color: #1e1e1e;
@@ -352,7 +383,6 @@ class AddGameDialog(QDialog):
                 background-color: #e53935;
                 border-radius: 4px;
             }
-            /* Style cho Terminal Console */
             QTextEdit#console_output {
                 background-color: #0c0c0c;
                 color: #00ff00;
@@ -403,27 +433,39 @@ class AddGameDialog(QDialog):
 
     def start_process(self):
         game_name = self.name_input.text().strip()
-        game_ver = self.ver_input.text().strip()
         exe_name = self.exe_input.text().strip()
+        game_ver = self.ver_input.text().strip()
+        video_url = self.video_input.text().strip()
+        description = self.desc_input.toPlainText().strip()
 
-        if not game_name or not game_ver or not exe_name or not self.folder_path:
-            QMessageBox.warning(self, "Thiếu thông tin", "Vui lòng nhập đầy đủ Tên, Version, File chạy và chọn Folder!")
+        # Nếu không nhập version thì mặc định là "1.0.0"
+        if not game_ver:
+            game_ver = "1.0.0"
+
+        # Bỏ đi điều kiện bắt buộc nhập version
+        if not game_name or not exe_name or not self.folder_path:
+            QMessageBox.warning(self, "Thiếu thông tin", "Vui lòng nhập các thông tin bắt buộc (*): Tên Game, File chạy và chọn Folder!")
             return
 
-        # Xóa log cũ trên UI trước khi chạy tiến trình mới
         self.console_output.clear()
         self.btn_start.setEnabled(False)
         
-        self.worker = UploadGameWorker(game_name, game_ver, self.folder_path, exe_name, self.cover_path)
+        self.worker = UploadGameWorker(
+            game_name, 
+            game_ver, 
+            self.folder_path, 
+            exe_name, 
+            self.cover_path,
+            video_url,      # Truyền biến video
+            description     # Truyền biến mô tả
+        )
         self.worker.progress_signal.connect(self.update_progress)
-        self.worker.log_signal.connect(self.append_log)  # Kết nối nhận log
+        self.worker.log_signal.connect(self.append_log) 
         self.worker.finished_signal.connect(self.process_finished)
         self.worker.start()
 
     def append_log(self, text):
-        """Hàm cập nhật text vào ô Console và tự cuộn xuống cuối"""
         self.console_output.append(text)
-        # Tự động trượt thanh cuộn xuống dưới cùng để dễ xem dòng mới
         scrollbar = self.console_output.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 

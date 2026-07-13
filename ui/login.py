@@ -4,12 +4,11 @@ import os
 import requests
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, 
                              QPushButton, QMessageBox, QStackedWidget, QWidget, 
-                             QLabel, QFrame, QInputDialog)
+                             QLabel, QFrame)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
 # Import thư viện OAuth chính chủ của Google
 from google_auth_oauthlib.flow import InstalledAppFlow
-# [CẬP NHẬT] Import thêm save_session
 from core.auth import login_user, register_user, reset_password, save_session
 
 # ================= ĐƯỜNG DẪN CẤU HÌNH GOOGLE OAUTH =================
@@ -94,6 +93,7 @@ class LoginWindow(QDialog):
         """)
         
         self.is_admin = False
+        self.is_verified = False  # [MỚI] Khởi tạo biến lưu trạng thái verify của user
         self.username = ""
         self.google_worker = None  
         
@@ -266,13 +266,15 @@ class LoginWindow(QDialog):
             QMessageBox.warning(self, "Lỗi", "Vui lòng nhập đủ thông tin!")
             return
             
-        success, is_admin, msg = login_user(user, pwd)
+        # [CẬP NHẬT] Đón nhận thêm biến is_verified từ hàm login_user mới
+        success, is_admin, is_verified, msg = login_user(user, pwd)
         
         if success:
             self.is_admin = is_admin
+            self.is_verified = is_verified  # [MỚI] Lưu trạng thái verify
             self.username = user
-            # [MỚI] Lưu session khi login thành công
-            save_session(self.username, self.is_admin) 
+            # [CẬP NHẬT] Lưu session đi kèm giá trị is_verified
+            save_session(self.username, self.is_admin, self.is_verified) 
             self.accept()
         else:
             QMessageBox.warning(self, "Lỗi", msg)
@@ -298,8 +300,11 @@ class LoginWindow(QDialog):
         self.username = google_username
         self.is_admin = False 
         
-        # [MỚI] Lưu session khi login google thành công
-        save_session(self.username, self.is_admin)
+        # [MỚI] Nếu đăng nhập bằng Google, kiểm tra xem email của họ đã được Google xác thực (email_verified) chưa
+        self.is_verified = user_info.get("email_verified", False)
+        
+        # [CẬP NHẬT] Lưu session có kèm is_verified của tài khoản Google
+        save_session(self.username, self.is_admin, self.is_verified)
         
         QMessageBox.information(self, "Thành công", f"Đăng nhập thành công qua Google!\nXin chào: {full_name}\nEmail: {email}")
         self.accept() 

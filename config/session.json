@@ -1,4 +1,5 @@
 {
     "username": "Bi",
-    "is_admin": true
+    "is_admin": true,
+    "is_verified": true
 }

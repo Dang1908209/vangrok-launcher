@@ -15,6 +15,12 @@ class StorePage(QWidget):
     def __init__(self, games_data, parent=None):
         super().__init__(parent)
         self.games_data = games_data
+        
+        # --- BẮT BUỘC ĐỂ QWIDGET NHẬN MAU NỀN TỪ STYLESHEET ---
+        self.setObjectName("StorePage")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        # -----------------------------------------------------
+
         self.load_fonts()
         self.setup_ui()
 
@@ -32,14 +38,41 @@ class StorePage(QWidget):
             QWidget { 
                 font-family: 'Montenegrin Gothic One', 'Orbitron', sans-serif; 
             }
+            
+            /* --- NỀN GRADIENT ĐEN - XÁM - ĐEN DỌC CHO TOÀN BỘ TRANG --- */
+            QWidget#StorePage {
+                background: qlineargradient(
+                    x1: 0, y1: 0,
+                    x2: 0, y2: 1,
+                    stop: 0.0 #111111,
+                    stop: 0.5 #2d2d2d,
+                    stop: 1.0 #111111
+                );
+            }
+            
             #storage_frame {
                 border: 1px solid #ff4d4d; 
                 border-radius: 5px; 
-                background-color: #2b2b2b;
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #424242,
+                    stop:1 #4a4a4a
+                );
                 padding: 10px; 
                 min-width: 150px;
             }
-            #storage_progress { border: none; background-color: #383838; border-radius: 5px; }
+            
+            #storage_progress { 
+                border: none;
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #383838,
+                    stop:1 #4a4a4a
+                ); 
+                border-radius: 5px; 
+            }
             #storage_progress::chunk { background-color: #ff4d4d; border-radius: 5px; }
             
             #calendar_frame, #info_frame {
@@ -69,6 +102,20 @@ class StorePage(QWidget):
             QCalendarWidget QAbstractItemView:disabled { 
                 color: #555555; 
             }
+            
+            /* --- STYLE CHO THANH SEARCH --- */
+            #search_bar {
+                background-color: #222222;
+                border: 1px solid #555555;
+                border-radius: 15px;
+                padding: 5px 15px;
+                color: white;
+                font-weight: bold;
+            }
+            #search_bar:focus {
+                border: 1px solid #ff4d4d;
+                background-color: #2a2a2a;
+            }
         """)
         
         layout = QVBoxLayout(self)
@@ -79,13 +126,13 @@ class StorePage(QWidget):
         header_layout = QHBoxLayout()
         title_layout = QVBoxLayout()
         lbl_store = QLabel("STORE")
-        lbl_store.setStyleSheet("font-size: 56px; font-weight: bold; color: white; letter-spacing: 2px;")
+        lbl_store.setStyleSheet("font-size: 56px; font-weight: bold; color: white; letter-spacing: 2px; background: transparent;")
         lbl_desc = QLabel("Explore and install all available games")
-        lbl_desc.setStyleSheet("font-size: 18px; color: #aaaaaa;")
+        lbl_desc.setStyleSheet("font-size: 18px; color: #aaaaaa; background: transparent;")
         
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("border-top: 2px solid #ff4d4d; max-width: 200px; margin-top: 5px; margin-bottom: 5px;")
+        line.setStyleSheet("border-top: 2px solid #ff4d4d; max-width: 200px; margin-top: 5px; margin-bottom: 5px; background: transparent;")
         
         title_layout.addWidget(lbl_store)
         title_layout.addWidget(line)
@@ -100,7 +147,7 @@ class StorePage(QWidget):
         
         self.lbl_storage = QLabel("Storage: Đang tính...\nfree")
         self.lbl_storage.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_storage.setStyleSheet("color: white; font-weight: bold; font-size: 13px;")
+        self.lbl_storage.setStyleSheet("color: white; font-weight: bold; font-size: 13px; background: transparent;")
         
         self.progress_storage = QProgressBar()
         self.progress_storage.setTextVisible(False)
@@ -120,7 +167,6 @@ class StorePage(QWidget):
         # 1. Khung Lịch (Calendar Widget) & Thời gian
         calendar_frame = QFrame()
         calendar_frame.setObjectName("calendar_frame")
-        # Tăng chiều cao một chút để có chỗ cho đồng hồ
         calendar_frame.setFixedHeight(270) 
         cal_frame_layout = QVBoxLayout(calendar_frame)
         cal_frame_layout.setContentsMargins(5, 10, 5, 5)
@@ -128,18 +174,17 @@ class StorePage(QWidget):
         # -- ĐỒNG HỒ VÀ NGÀY THÁNG --
         self.lbl_clock = QLabel("00:00:00")
         self.lbl_clock.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_clock.setStyleSheet("font-size: 26px; font-weight: bold; color: #ff4d4d; font-family: 'Orbitron', sans-serif; letter-spacing: 2px;")
+        self.lbl_clock.setStyleSheet("font-size: 26px; font-weight: bold; color: #ff4d4d; font-family: 'Orbitron', sans-serif; letter-spacing: 2px; background: transparent;")
         
         self.lbl_date = QLabel("Ngày / Tháng / Năm")
         self.lbl_date.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_date.setStyleSheet("font-size: 13px; color: #aaaaaa; margin-bottom: 5px; font-weight: bold;")
+        self.lbl_date.setStyleSheet("font-size: 13px; color: #aaaaaa; margin-bottom: 5px; font-weight: bold; background: transparent;")
         
         cal_frame_layout.addWidget(self.lbl_clock)
         cal_frame_layout.addWidget(self.lbl_date)
         
         self.calendar = QCalendarWidget()
         self.calendar.setGridVisible(False)
-        # Làm gọn giao diện lịch bằng cách rút ngắn tên thứ tự và ẩn số tuần
         self.calendar.setHorizontalHeaderFormat(QCalendarWidget.HorizontalHeaderFormat.SingleLetterDayNames)
         self.calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
         cal_frame_layout.addWidget(self.calendar)
@@ -152,14 +197,13 @@ class StorePage(QWidget):
         info_frame_layout.setContentsMargins(20, 15, 20, 15)
         
         lbl_info_title = QLabel("📢 SYSTEM ANNOUNCEMENTS")
-        lbl_info_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #ff4d4d; letter-spacing: 1px;")
+        lbl_info_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #ff4d4d; letter-spacing: 1px; background: transparent;")
         
         lbl_info_content = QLabel(
             "• Chào mừng bạn đến với Launcher chính thức của Vangrok!\n"
-            "• Luôn cập nhật phiên bản mới nhất từ trang chủ để tránh lỗi mismatch client.\n"
-            "• Chúc các bạn có những trải nghiệm chơi game tuyệt vời nhất cùng bạn bè."
+            "• Lưu ý luôn cập nhật phiên bản mới nhất từ trang chủ để tránh lỗi mismatch client.\n"
         )
-        lbl_info_content.setStyleSheet("font-size: 14px; color: #dddddd; line-height: 1.6;")
+        lbl_info_content.setStyleSheet("font-size: 14px; color: #dddddd; line-height: 1.6; background: transparent;")
         lbl_info_content.setWordWrap(True)
         lbl_info_content.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         
@@ -170,10 +214,9 @@ class StorePage(QWidget):
         # -- HIỂN THỊ VERSION LAUNCHER --
         lbl_version = QLabel("Vangrok Launcher v1.0.0")
         lbl_version.setAlignment(Qt.AlignmentFlag.AlignRight)
-        lbl_version.setStyleSheet("color: #666666; font-size: 12px; font-style: italic;")
+        lbl_version.setStyleSheet("color: #666666; font-size: 12px; font-style: italic; background: transparent;")
         info_frame_layout.addWidget(lbl_version)
         
-        # Chia tỉ lệ Layout: Lịch chiếm 4 phần, Bảng thông báo chiếm 5 phần chiều ngang
         dashboard_layout.addWidget(calendar_frame, stretch=4)
         dashboard_layout.addWidget(info_frame, stretch=5)
         layout.addLayout(dashboard_layout)
@@ -190,48 +233,6 @@ class StorePage(QWidget):
         
         search_layout.addWidget(self.search_bar)
         layout.addLayout(search_layout)
-        
-        # --- Banner ---
-        banner = QFrame()
-        banner.setObjectName("banner")
-        banner.setFixedHeight(140)
-        banner_layout = QHBoxLayout(banner)
-        banner_layout.setContentsMargins(20, 20, 20, 20)
-        
-        banner_title = self.games_data[0]["name"] if self.games_data else "Game"
-        banner_ver = self.games_data[0]["version"] if self.games_data else "x.x.x"
-        banner_size = f"{self.games_data[0]['size']} GB" if self.games_data else "N/A GB"
-        
-        banner_info = QVBoxLayout()
-        lbl_banner_title = QLabel(banner_title)
-        lbl_banner_title.setStyleSheet("font-size: 24px; color: white; font-weight: bold;")
-        lbl_banner_ver = QLabel(f"Ver {banner_ver}")
-        lbl_banner_ver.setStyleSheet("color: white;")
-        banner_info.addStretch()
-        banner_info.addWidget(lbl_banner_title)
-        banner_info.addWidget(lbl_banner_ver)
-        
-        banner_center = QLabel("IMAGE BANNER")
-        banner_center.setStyleSheet("font-size: 20px; color: white;")
-        banner_center.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        banner_action = QVBoxLayout()
-        banner_action.addStretch()
-        
-        lbl_banner_size = QLabel(str(banner_size))
-        lbl_banner_size.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_banner_size.setStyleSheet("color: white;")
-        
-        btn_banner_install = QPushButton("Install")
-        btn_banner_install.setFixedWidth(120)
-        btn_banner_install.setObjectName("btn_action")
-        banner_action.addWidget(lbl_banner_size)
-        banner_action.addWidget(btn_banner_install)
-        
-        banner_layout.addLayout(banner_info)
-        banner_layout.addWidget(banner_center, stretch=1)
-        banner_layout.addLayout(banner_action)
-        layout.addWidget(banner)
         
         # --- Grid Game Cards ---
         self.cards_layout = QHBoxLayout()
@@ -273,7 +274,7 @@ class StorePage(QWidget):
                 
         if not has_results:
             lbl_empty = QLabel("Không tìm thấy trò chơi nào phù hợp.")
-            lbl_empty.setStyleSheet("color: #aaaaaa; font-size: 16px; font-style: italic;")
+            lbl_empty.setStyleSheet("color: #aaaaaa; font-size: 16px; font-style: italic; background: transparent;")
             self.cards_layout.addWidget(lbl_empty)
             
         self.cards_layout.addStretch()

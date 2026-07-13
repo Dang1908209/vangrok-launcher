@@ -11,6 +11,7 @@ from ui.widgets.game_card import GameCard
 from ui.login import LoginWindow 
 from ui.setting import SettingsPage
 from ui.store_build import StorePage  # Import file giao diện Store vừa tách
+from ui.show_game_detail import GameDetailPage # Import file giao diện Chi tiết Game
 from core.updater import check_launcher_update, LauncherUpdaterWorker
 from core.game_manager import get_all_games, get_install_path, save_install_path, get_storage_info
 
@@ -177,7 +178,11 @@ class MainWindow(QMainWindow):
         self.content_area.addWidget(self.store_page)  # Index 0: Store 
         
         self.build_library_page()     # Index 1: Library
-        self.build_detail_page()      # Index 2: Detail Game
+
+        # --- GỌI CLASS GAME DETAIL PAGE ĐÃ TÁCH ---
+        self.detail_page = GameDetailPage(base_dir=BASE_DIR, parent=self)
+        self.detail_page.back_requested.connect(self.on_store_clicked) # Xử lý nút quay lại
+        self.content_area.addWidget(self.detail_page) # Index 2: Detail Game
         
         # Gọi Class Setting Page và các kết nối Signal
         self.settings_page = SettingsPage(self)
@@ -294,65 +299,11 @@ class MainWindow(QMainWindow):
             self.library_grid_layout.addStretch()
 
     # --- HÀM XỬ LÝ TRANG CHI TIẾT GAME ---
-    def build_detail_page(self):
-        self.detail_page = QWidget()
-        layout = QVBoxLayout(self.detail_page)
-        layout.setContentsMargins(30, 20, 30, 20)
-        
-        btn_back = QPushButton("⬅ Quay lại")
-        btn_back.setStyleSheet("color: #ff4d4d; font-size: 16px; font-weight: bold; text-align: left; padding: 0px; margin-bottom: 15px;")
-        btn_back.setFixedWidth(120)
-        btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_back.clicked.connect(self.on_store_clicked)
-        layout.addWidget(btn_back)
-        
-        header_layout = QHBoxLayout()
-        self.detail_title = QLabel("Game Title")
-        self.detail_title.setStyleSheet("font-size: 38px; font-weight: bold; color: white; margin-top: 15px;")
-        header_layout.addWidget(self.detail_title)
-        
-        header_layout.addStretch()
-        
-        self.detail_btn_action = QPushButton("Install")
-        self.detail_btn_action.setFixedSize(160, 45)
-        self.detail_btn_action.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.detail_btn_action.setStyleSheet("background-color: #ff4d4d; color: white; font-size: 18px; font-weight: bold; border-radius: 5px;")
-        header_layout.addWidget(self.detail_btn_action)
-        
-        layout.addLayout(header_layout)
-        
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("border-top: 1px solid #555; margin: 15px 0;")
-        layout.addWidget(line)
-        
-        lbl_about = QLabel("VỀ TRÒ CHƠI NÀY")
-        lbl_about.setStyleSheet("color: #aaaaaa; font-size: 14px; font-weight: bold; margin-bottom: 5px;")
-        layout.addWidget(lbl_about)
-        
-        self.detail_desc = QLabel("Mô tả game sẽ hiện ở đây...")
-        self.detail_desc.setStyleSheet("color: #dddddd; font-size: 16px; line-height: 1.6;")
-        self.detail_desc.setWordWrap(True)
-        self.detail_desc.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        layout.addWidget(self.detail_desc, stretch=1)
-        
-        self.content_area.addWidget(self.detail_page)
-
     def show_game_detail(self, game_data):
-        self.detail_title.setText(game_data.get("name", "Unknown Game"))
+        # Đẩy dữ liệu sang Class GameDetailPage đã tách
+        self.detail_page.set_game_data(game_data)
         
-        status_text = game_data.get("status", "Install")
-        self.detail_btn_action.setText(status_text)
-        if status_text == "Play":
-            self.detail_btn_action.setStyleSheet("background-color: #27ae60; color: white; font-size: 18px; font-weight: bold; border-radius: 5px;")
-        elif status_text == "Update":
-            self.detail_btn_action.setStyleSheet("background-color: #f39c12; color: white; font-size: 18px; font-weight: bold; border-radius: 5px;")
-        else:
-            self.detail_btn_action.setStyleSheet("background-color: #ff4d4d; color: white; font-size: 18px; font-weight: bold; border-radius: 5px;")
-            
-        default_desc = "Trò chơi này hiện chưa có bài viết mô tả chi tiết từ quản trị viên Vangrok.\n\nHãy nhấn nút bên trên để cài đặt và trải nghiệm cùng bạn bè ngay!"
-        self.detail_desc.setText(game_data.get("description", default_desc))
-            
+        # Chuyển tới trang Index 2
         self.content_area.setCurrentIndex(2)
 
     # --- TÍNH TOÁN DUNG LƯỢNG Ổ ĐĨA ---
@@ -366,103 +317,269 @@ class MainWindow(QMainWindow):
             
         self.store_page.update_storage(drive_name, free_gb, total_gb, used_gb)
 
-    # --- HÀM CẤU HÌNH GIAO DIỆN VÀ CSS ĐỘNG ---
     def apply_styles(self):
         self.setStyleSheet("""
-            QWidget { 
-                font-family: 'Montenegrin Gothic One', 'MontenegrinGothicOne-Regular', 'Orbitron', 'Rajdhani', 'Segoe UI', sans-serif; 
+            QWidget {
+                font-family: 'Montenegrin Gothic One',
+                             'MontenegrinGothicOne-Regular',
+                             'Orbitron',
+                             'Rajdhani',
+                             'Segoe UI',
+                             sans-serif;
             }
-            
-            QMainWindow { background-color: #3b3b3b; }
+
+            QMainWindow {
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #424242,
+                    stop:1 #4a4a4a
+                );
+            }
+
             #sidebar {
-                background-color: #2b2b2b;
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:1, y2:0,
+                    stop:0 #242424,
+                    stop:1 #2d2d2d
+                );
                 border-right: 1px solid #ff4d4d;
             }
-            #right_panel { background-color: #4a4a4a; }
-            
+
+            #right_panel {
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #474747,
+                    stop:1 #4a4a4a
+                );
+            }
+
             QPushButton[nav_btn="true"] {
-                background-color: transparent; 
-                color: #cccccc; 
+                background-color: transparent;
+                color: #cccccc;
                 border: none;
                 border-left: 3px solid transparent;
-                padding: 12px 15px; 
+                padding: 12px 15px;
                 font-size: 18px;
                 font-weight: 600;
                 text-align: left;
                 border-radius: 0px;
                 letter-spacing: 1px;
             }
-            QPushButton[nav_btn="true"]:hover { 
-                background-color: #383838; 
-                color: #ffffff; 
+
+            QPushButton[nav_btn="true"]:hover {
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:1, y2:0,
+                    stop:0 #383838,
+                    stop:1 #444444
+                );
+                color: #ffffff;
             }
-            QPushButton[nav_btn="true"][active="true"] { 
-                background-color: #444444; 
-                color: #ff4d4d;            
+
+            QPushButton[nav_btn="true"][active="true"] {
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:1, y2:0,
+                    stop:0 #404040,
+                    stop:1 #4d4d4d
+                );
+                color: #ff4d4d;
                 font-weight: bold;
-                border-left: 3px solid #ff4d4d; 
+                border-left: 3px solid #ff4d4d;
             }
-            
-            #library_title { 
-                color: #888888; 
-                font-size: 14px; 
-                font-weight: bold; 
-                margin-top: 30px; 
-                margin-bottom: 5px; 
-                padding-left: 15px; 
+
+            #library_title {
+                color: #888888;
+                font-size: 14px;
+                font-weight: bold;
+                margin-top: 30px;
+                margin-bottom: 5px;
+                padding-left: 15px;
                 letter-spacing: 1.5px;
             }
-            
+
             #btn_admin {
-                background-color: transparent; border: 1px solid #ff4d4d; color: #ff4d4d;
-                border-radius: 5px; padding: 5px 15px; text-align: center; font-size: 13px; font-weight: bold;
-            }
-            #btn_admin:hover { background-color: #ff4d4d; color: white; }
-            
-            #storage_frame {
-                border: 1px solid #ff4d4d; border-radius: 5px; background-color: #3b3b3b;
-                padding: 10px; min-width: 130px;
-            }
-            #storage_progress { border: none; background-color: #2b2b2b; border-radius: 5px; }
-            #storage_progress::chunk { background-color: #3498db; border-radius: 5px; }
-            
-            #game_card { 
-                background-color: #2b2b2b; border-radius: 8px; border: 1px solid transparent; 
-            }
-            #game_card:hover { 
-                background-color: #383838; border: 1px solid #ff4d4d; 
-            }
-            
-            #btn_action { border-radius: 5px; padding: 5px; font-size: 14px; text-align: center; margin: 0px 5px 5px 5px; }
-            
-            #search_bar {
-                background-color: #2b2b2b; color: white; border: none;
-                border-radius: 10px; padding: 5px 15px; font-size: 14px; margin-bottom: 10px;
+                background-color: transparent;
+                border: 1px solid #ff4d4d;
+                color: #ff4d4d;
+                border-radius: 5px;
+                padding: 5px 15px;
+                text-align: center;
+                font-size: 13px;
+                font-weight: bold;
             }
 
-            #btn_win_ctrl, #btn_win_close {
-                background-color: transparent; color: #aaaaaa; border: none;
-                padding: 5px 12px; font-size: 14px; font-weight: bold;
-                text-align: center; border-radius: 0px; min-width: 35px; max-height: 30px;
+            #btn_admin:hover {
+                background-color: #ff4d4d;
+                color: white;
             }
-            #btn_win_ctrl:hover { background-color: #555555; color: white; }
-            #btn_win_close:hover { background-color: #e81123; color: white; }
+
+            #storage_frame {
+                border: 1px solid #ff4d4d;
+                border-radius: 5px;
+
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #2f2f2f,
+                    stop:1 #393939
+                );
+
+                padding: 10px;
+                min-width: 130px;
+            }
+
+            #storage_progress {
+                border: none;
+                background-color: #222222;
+                border-radius: 5px;
+            }
+
+            #storage_progress::chunk {
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:1, y2:0,
+                    stop:0 #ff4d4d,
+                    stop:1 #ff7777
+                );
+                border-radius: 5px;
+            }
+
+            #game_card {
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #2c2c2c,
+                    stop:1 #252525
+                );
+
+                border-radius: 8px;
+                border: 1px solid transparent;
+            }
+
+            #game_card:hover {
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #383838,
+                    stop:1 #2d2d2d
+                );
+
+                border: 1px solid #ff4d4d;
+            }
+
+            #btn_action {
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 14px;
+                text-align: center;
+                margin: 0px 5px 5px 5px;
+            }
+
+            #search_bar {
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #303030,
+                    stop:1 #242424
+                );
+
+                color: white;
+                border: 1px solid #444444;
+                border-radius: 10px;
+                padding: 5px 15px;
+                font-size: 14px;
+                margin-bottom: 10px;
+            }
+
+            #search_bar:focus {
+                border: 1px solid #ff4d4d;
+            }
+
+            #btn_win_ctrl,
+            #btn_win_close {
+                background-color: transparent;
+                color: #aaaaaa;
+                border: none;
+                padding: 5px 12px;
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+                border-radius: 0px;
+                min-width: 35px;
+                max-height: 30px;
+            }
+
+            #btn_win_ctrl:hover {
+                background-color: #555555;
+                color: white;
+            }
+
+            #btn_win_close:hover {
+                background-color: #e81123;
+                color: white;
+            }
 
             #btn_user {
-                background-color: #2b2b2b; color: white; border: 1px solid #555555;
-                border-radius: 15px; padding: 5px 15px; font-size: 13px;
-                font-weight: bold; text-align: center; margin-right: 15px;
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #303030,
+                    stop:1 #242424
+                );
+
+                color: white;
+                border: 1px solid #555555;
+                border-radius: 15px;
+                padding: 5px 15px;
+                font-size: 13px;
+                font-weight: bold;
+                text-align: center;
+                margin-right: 15px;
             }
-            #btn_user:hover { background-color: #383838; border: 1px solid #ff4d4d; }
-            #btn_user::menu-indicator { image: none; }
+
+            #btn_user:hover {
+                border: 1px solid #ff4d4d;
+                background-color: #383838;
+            }
+
+            #btn_user::menu-indicator {
+                image: none;
+            }
 
             QMenu {
-                background-color: #2b2b2b; color: white; border: 1px solid #ff4d4d;
-                border-radius: 8px; padding: 5px 0px;
+                background: qlineargradient(
+                    x1:0, y1:0,
+                    x2:0, y2:1,
+                    stop:0 #2b2b2b,
+                    stop:1 #222222
+                );
+
+                color: white;
+                border: 1px solid #ff4d4d;
+                border-radius: 8px;
+                padding: 5px 0px;
             }
-            QMenu::item { padding: 8px 25px 8px 15px; font-size: 13px; font-weight: bold; }
-            QMenu::item:selected { background-color: #ff4d4d; color: white; }
-            QMenu::separator { height: 1px; background-color: #444444; margin: 4px 0px; }
+
+            QMenu::item {
+                padding: 8px 25px 8px 15px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+
+            QMenu::item:selected {
+                background-color: #ff4d4d;
+                color: white;
+            }
+
+            QMenu::separator {
+                height: 1px;
+                background-color: #444444;
+                margin: 4px 0px;
+            }
         """)
 
     def change_account(self):

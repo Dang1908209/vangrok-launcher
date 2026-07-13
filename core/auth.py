@@ -8,7 +8,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE_DIR, 'config', 'config.json')
 USERS_DB_PATH = os.path.join(BASE_DIR, 'config', 'users.json')
-# [MỚI] Đường dẫn lưu phiên đăng nhập
+# Đường dẫn lưu phiên đăng nhập
 SESSION_PATH = os.path.join(BASE_DIR, 'config', 'session.json') 
 
 def hash_password(password: str) -> str:
@@ -36,7 +36,8 @@ def register_user(username, email, password):
         
     users[username] = {
         "email": email,
-        "password": hash_password(password)
+        "password": hash_password(password),
+        "is_verified": False  # [MỚI] Mặc định tài khoản mới đăng ký chưa được verify
     }
     
     with open(USERS_DB_PATH, 'w', encoding='utf-8') as f:
@@ -47,24 +48,26 @@ def register_user(username, email, password):
 def login_user(username, password):
     """
     Kiểm tra đăng nhập. 
-    Trả về tuple: (Thành công hay không, Có phải Admin không, Thông báo)
+    Trả về tuple: (Thành công, Có phải Admin không, Có phải Verified không, Thông báo)
     """
     if not os.path.exists(USERS_DB_PATH):
-        return False, False, "Hệ thống chưa có tài khoản nào."
+        return False, False, False, "Hệ thống chưa có tài khoản nào."
         
     with open(USERS_DB_PATH, 'r', encoding='utf-8') as f:
         users = json.load(f)
         
     if username not in users:
-        return False, False, "Sai tài khoản hoặc mật khẩu."
+        return False, False, False, "Sai tài khoản hoặc mật khẩu."
         
     user_data = users[username]
     if user_data['password'] == hash_password(password):
         # Đối chiếu email user với admin_email trong config
         is_admin = (user_data['email'] == get_admin_email())
-        return True, is_admin, "Đăng nhập thành công!"
+        # [MỚI] Đọc trạng thái verified từ DB, nếu không có thì mặc định là False
+        is_verified = user_data.get('is_verified', False)
+        return True, is_admin, is_verified, "Đăng nhập thành công!"
         
-    return False, False, "Sai tài khoản hoặc mật khẩu."
+    return False, False, False, "Sai tài khoản hoặc mật khẩu."
 
 def reset_password(username, email, new_password):
     """
@@ -92,11 +95,13 @@ def reset_password(username, email, new_password):
 
 # ================= CÁC HÀM XỬ LÝ SESSION (KEEP ME LOGGED IN) =================
 
-def save_session(username, is_admin):
+# [CẬP NHẬT] Thêm tham số is_verified vào hàm lưu session
+def save_session(username, is_admin, is_verified):
     """Lưu phiên đăng nhập hiện tại vào file JSON"""
     session_data = {
         "username": username,
-        "is_admin": is_admin
+        "is_admin": is_admin,
+        "is_verified": is_verified
     }
     # Đảm bảo thư mục config tồn tại
     os.makedirs(os.path.dirname(SESSION_PATH), exist_ok=True)
@@ -141,13 +146,16 @@ def change_db_username(old_username, new_username):
     # Chuyển dữ liệu từ key cũ sang key mới và xóa key cũ
     users[new_username] = users.pop(old_username)
     
-    # Lưu lại vào users.json
     with open(USERS_DB_PATH, 'w', encoding='utf-8') as f:
         json.dump(users, f, indent=4)
         
     # Cập nhật lại session.json nếu user đang đổi tên chính là user đang đăng nhập
     current_session = get_current_session()
     if current_session and current_session.get("username") == old_username:
-        save_session(new_username, current_session.get("is_admin", False))
+        save_session(
+            new_username, 
+            current_session.get("is_admin", False), 
+            current_session.get("is_verified", False) # [CẬP NHẬT] Bảo toàn trạng thái verified khi đổi tên
+        )
         
     return True, "Đổi tên thành công!"

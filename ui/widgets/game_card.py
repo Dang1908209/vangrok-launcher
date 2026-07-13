@@ -20,8 +20,8 @@ class GameCard(QFrame):
         self.exe_path = self.game_data.get("exe_path")
         
         # Đường dẫn thư mục cài đặt và file thực thi của game này
-        self.game_dir = os.path.join(BASE_DIR, "installed_games", self.game_id)
-        self.full_exe_path = os.path.join(self.game_dir, self.exe_path)
+        self.game_dir = os.path.join(BASE_DIR, "installed_games", str(self.game_id))
+        self.full_exe_path = os.path.join(self.game_dir, str(self.exe_path))
         
         self.setFixedSize(180, 260) # Tăng kích thước thẻ để chứa đẹp ảnh thumbnail
         self.setObjectName("game_card")
@@ -38,13 +38,12 @@ class GameCard(QFrame):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
         
-        # 1. KHU VỰC THUMBNAIL (Sửa đổi từ "thumbnail" -> "cover")
+        # 1. KHU VỰC THUMBNAIL
         self.lbl_thumb = QLabel()
         self.lbl_thumb.setFixedHeight(130)
         self.lbl_thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_thumb.setStyleSheet("background-color: #1a1a1a; border-radius: 5px;")
         
-        # Lấy tên file ảnh từ link URL raw
         cover_url = self.game_data.get("cover", "")
         cover_filename = cover_url.split("/")[-1] if cover_url else ""
         thumb_path = os.path.join(BASE_DIR, "assets", "covers", cover_filename)
@@ -55,13 +54,12 @@ class GameCard(QFrame):
                 pixmap.scaled(160, 130, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
             )
         else:
-            # Fallback nếu không có ảnh cục bộ
             self.lbl_thumb.setText("NO IMAGE")
             self.lbl_thumb.setStyleSheet("background-color: #1a1a1a; color: #666666; font-weight: bold; border-radius: 5px;")
             
         layout.addWidget(self.lbl_thumb)
         
-        # 2. TIÊU ĐỀ GAME (Sửa đổi từ "title" -> "name")
+        # 2. TIÊU ĐỀ GAME
         lbl_title = QLabel(self.game_data.get("name", "Unknown Game"))
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_title.setStyleSheet("font-size: 14px; font-weight: bold; color: white;")
@@ -70,21 +68,51 @@ class GameCard(QFrame):
         
         layout.addStretch()
         
-        # 3. KÍCH THƯỚC FILE (Sửa đổi từ "size" -> "size_mb")
-        size_mb = self.game_data.get("size_mb", 0)
-        lbl_size = QLabel(f"{size_mb} MB")
-        lbl_size.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_size.setStyleSheet("font-size: 11px; color: #aaaaaa;")
-        layout.addWidget(lbl_size)
+        # 3. KÍCH THƯỚC FILE (Đã fix để tự tính dung lượng ổ đĩa thực hoặc quét chuẩn key)
+        size_str = self.get_display_size()
+        self.lbl_size = QLabel(size_str)
+        self.lbl_size.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_size.setStyleSheet("font-size: 11px; color: #aaaaaa; font-weight: bold;")
+        layout.addWidget(self.lbl_size)
         
         # 4. NÚT ACTION (Play / Install)
         self.btn_action = QPushButton("Kiểm tra...")
         self.btn_action.setObjectName("btn_action")
         self.btn_action.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_action.setFixedHeight(30)
-        self.btn_action.clicked.connect(self.handle_action) # Kết nối hành động click nút
+        self.btn_action.clicked.connect(self.handle_action)
         
         layout.addWidget(self.btn_action)
+
+    def get_display_size(self):
+        """Hàm thông minh tự tính dung lượng thực trên máy hoặc đọc từ data JSON"""
+        # Ưu tiên 1: Nếu game đã cài đặt, quét luôn thư mục thực tế trên ổ cứng (ra đúng số như 771 MB)
+        if os.path.exists(self.game_dir):
+            total_size = 0
+            try:
+                for dirpath, _, filenames in os.walk(self.game_dir):
+                    for f in filenames:
+                        fp = os.path.join(dirpath, f)
+                        if not os.path.islink(fp):
+                            total_size += os.path.getsize(fp)
+                size_in_mb = round(total_size / (1024 * 1024))
+                if size_in_mb > 0:
+                    return f"{size_in_mb} MB" if size_in_mb < 1024 else f"{round(size_in_mb / 1024, 2)} GB"
+            except Exception:
+                pass # Nếu lỗi quyền đọc file thì bỏ qua chạy xuống lấy từ JSON
+
+        # Ưu tiên 2: Lấy từ data JSON (quét tất cả các key dễ bị đặt nhầm)
+        size_val = self.game_data.get("size_mb", self.game_data.get("size", self.game_data.get("file_size", 0)))
+        try:
+            val_float = float(size_val)
+            if val_float > 0:
+                return f"{int(val_float)} MB" if val_float < 1024 else f"{round(val_float / 1024, 2)} GB"
+        except (ValueError, TypeError):
+            # Nếu trong JSON ghi dạng chữ sẵn như "771 MB" hay "1.2 GB"
+            if isinstance(size_val, str) and len(size_val.strip()) > 0:
+                return size_val if ("MB" in size_val.upper() or "GB" in size_val.upper()) else f"{size_val} MB"
+                
+        return "N/A"
 
     def check_game_status(self):
         """Quét ổ đĩa để cập nhật giao diện nút bấm phù hợp"""
@@ -93,9 +121,11 @@ class GameCard(QFrame):
             self.btn_action.setText("CHƠI NGAY")
             self.btn_action.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
             self.btn_action.setEnabled(True)
+            # Khi kiểm tra thấy đã cài đặt, cập nhật lại nhãn dung lượng cho chính xác 100%
+            self.lbl_size.setText(self.get_display_size())
         else:
             self.status = "Install"
-            self.btn_action.setText("CÀI ĐẶT")
+            self.btn_action.setText("Install")
             self.btn_action.setStyleSheet("background-color: #555555; color: white; font-weight: bold;")
             self.btn_action.setEnabled(True)
 
@@ -103,7 +133,6 @@ class GameCard(QFrame):
         """Xử lý sự kiện khi click trực tiếp vào nút chức năng"""
         if self.status == "Play":
             try:
-                # Chạy file game (.exe) ngầm và đặt thư mục làm việc (cwd) tại folder game đó
                 subprocess.Popen(self.full_exe_path, cwd=self.game_dir, shell=True)
             except Exception as e:
                 print(f"Không thể khởi chạy game: {e}")
@@ -121,7 +150,6 @@ class GameCard(QFrame):
         self.btn_action.setStyleSheet("background-color: #f39c12; color: white; font-weight: bold;")
         self.btn_action.setText("0%")
 
-        # Khởi tạo Thread chuyên tải dữ liệu
         self.downloader = GameDownloader(download_url, self.game_id, BASE_DIR)
         self.downloader.progress_signal.connect(self.update_download_progress)
         self.downloader.finished_signal.connect(self.download_finished)
@@ -134,10 +162,10 @@ class GameCard(QFrame):
     def download_finished(self, success, message):
         """Báo cáo kết quả sau khi tải hoàn tất"""
         if success:
-            self.check_game_status() # Chuyển trạng thái sang nút "CHƠI NGAY"
+            self.check_game_status() # Chuyển trạng thái sang nút "CHƠI NGAY" và update lại dung lượng thật
         else:
             print(f"Lỗi tải game {self.game_id}: {message}")
-            self.check_game_status() # Reset giao diện về trạng thái ban đầu
+            self.check_game_status()
 
     def mousePressEvent(self, event):
         """Bắt sự kiện click chuột vào vùng Thẻ game để mở trang chi tiết"""
