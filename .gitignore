@@ -10,3 +10,4 @@ __pycache__/
 *.pyc
 
 token_config.py
+config/client_secret.json

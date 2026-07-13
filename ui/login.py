@@ -1,14 +1,70 @@
+# ui/login.py
+
+import os
+import requests
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, 
                              QPushButton, QMessageBox, QStackedWidget, QWidget, 
                              QLabel, QFrame, QInputDialog)
-from PyQt6.QtCore import Qt
-from core.auth import login_user, register_user, reset_password
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
+# Import thư viện OAuth chính chủ của Google
+from google_auth_oauthlib.flow import InstalledAppFlow
+# [CẬP NHẬT] Import thêm save_session
+from core.auth import login_user, register_user, reset_password, save_session
+
+# ================= ĐƯỜNG DẪN CẤU HÌNH GOOGLE OAUTH =================
+UI_DIR = os.path.dirname(os.path.abspath(__file__))
+LAUNCHER_ROOT = os.path.dirname(UI_DIR)
+CLIENT_SECRET_FILE = os.path.join(LAUNCHER_ROOT, "config", "client_secret.json")
+
+# Các quyền hạn muốn xin từ tài khoản Google của game thủ
+SCOPES = [
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'openid'
+]
+
+# ================= LUỒNG CHẠY NGẦM XỬ LÝ GOOGLE AUTH =================
+class GoogleLoginWorker(QThread):
+    finished_signal = pyqtSignal(dict)  # Bắn data user về main UI khi thành công
+    error_signal = pyqtSignal(str)      # Bắn thông báo lỗi về nếu có biến
+
+    def run(self):
+        try:
+            # Kiểm tra xem mày đã ném file vào thư mục config chưa
+            if not os.path.exists(CLIENT_SECRET_FILE):
+                self.error_signal.emit(
+                    f"Không tìm thấy file xác thực!\nVui lòng đảm bảo file tồn tại tại:\n{CLIENT_SECRET_FILE}"
+                )
+                return
+
+            # Khởi tạo luồng OAuth từ file cấu hình JSON trong thư mục config
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
+            
+            # port=0 để hệ thống tự cấp một cổng local trống ngẫu nhiên làm cổng hồi đáp (callback server)
+            creds = flow.run_local_server(port=0, prompt='consent')
+
+            # Gửi Request lấy thông tin tài khoản sau khi user đăng nhập trên web thành công
+            response = requests.get(
+                'https://www.googleapis.com/oauth2/v3/userinfo',
+                headers={'Authorization': f'Bearer {creds.token}'}
+            )
+
+            if response.status_code == 200:
+                user_info = response.json()
+                self.finished_signal.emit(user_info)
+            else:
+                self.error_signal.emit("Không thể kết nối tới Google API để lấy thông tin profile.")
+                
+        except Exception as e:
+            self.error_signal.emit(f"Quá trình đăng nhập Google thất bại:\n{str(e)}")
+
+# ================= MÀN HÌNH ĐĂNG NHẬP CHÍNH =================
 class LoginWindow(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Vangrok - Xác thực hệ thống")
-        self.setFixedSize(350, 520)  # Tăng chiều cao lên một chút cho đẹp
+        self.setFixedSize(350, 520)  
         self.setStyleSheet("""
             QDialog { background-color: #2b2b2b; }
             QLabel { color: white; font-family: 'Segoe UI', Arial; }
@@ -24,12 +80,12 @@ class LoginWindow(QDialog):
             }
             QPushButton.primary:hover { background-color: #e60000; }
             
-            /* [MỚI] Style riêng cho nút Đăng nhập Google */
             QPushButton.google {
                 background-color: #ffffff; color: #333333; border-radius: 5px;
                 padding: 10px; font-size: 14px; font-weight: bold;
             }
             QPushButton.google:hover { background-color: #e0e0e0; }
+            QPushButton.google:disabled { background-color: #aaaaaa; color: #666666; }
             
             QPushButton.link {
                 background: transparent; color: #aaaaaa; border: none; font-size: 12px;
@@ -39,6 +95,7 @@ class LoginWindow(QDialog):
         
         self.is_admin = False
         self.username = ""
+        self.google_worker = None  
         
         self.stack = QStackedWidget(self)
         
@@ -54,7 +111,6 @@ class LoginWindow(QDialog):
         layout.addWidget(self.stack)
         self.setLayout(layout)
         
-    # ================= MÀN HÌNH ĐĂNG NHẬP =================
     def build_login_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -80,7 +136,6 @@ class LoginWindow(QDialog):
         btn_login.clicked.connect(self.handle_login)
         layout.addWidget(btn_login)
         
-        # --- [MỚI] ĐƯỜNG KẺ PHÂN CÁCH "HOẶC" ---
         divider_layout = QHBoxLayout()
         line1 = QFrame()
         line1.setFrameShape(QFrame.Shape.HLine)
@@ -99,13 +154,11 @@ class LoginWindow(QDialog):
         divider_layout.addWidget(line2)
         layout.addLayout(divider_layout)
         
-        # --- [MỚI] NÚT ĐĂNG NHẬP BẰNG GOOGLE ---
-        btn_google = QPushButton("🌐 Đăng nhập bằng Google")
-        btn_google.setProperty("class", "google")
-        btn_google.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_google.clicked.connect(self.handle_google_login)
-        layout.addWidget(btn_google)
-        # ----------------------------------------
+        self.btn_google = QPushButton("🌐 Đăng nhập bằng Google")
+        self.btn_google.setProperty("class", "google")
+        self.btn_google.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_google.clicked.connect(self.handle_google_login)
+        layout.addWidget(self.btn_google)
         
         nav_layout = QHBoxLayout()
         btn_to_reg = QPushButton("Đăng ký")
@@ -125,7 +178,6 @@ class LoginWindow(QDialog):
         
         return page
 
-    # ================= MÀN HÌNH ĐĂNG KÝ =================
     def build_register_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -168,7 +220,6 @@ class LoginWindow(QDialog):
         
         return page
 
-    # ================= MÀN HÌNH QUÊN MẬT KHẨU =================
     def build_forgot_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -220,37 +271,43 @@ class LoginWindow(QDialog):
         if success:
             self.is_admin = is_admin
             self.username = user
+            # [MỚI] Lưu session khi login thành công
+            save_session(self.username, self.is_admin) 
             self.accept()
         else:
             QMessageBox.warning(self, "Lỗi", msg)
 
-    # [MỚI] HÀM XỬ LÝ ĐĂNG NHẬP BẰNG GOOGLE
     def handle_google_login(self):
-        """
-        Đây là luồng giả lập OAuth Google để bạn test app ngay lập tức.
-        Khi triển khai thực tế, bạn sẽ thay đoạn này bằng code mở Trình duyệt (webbrowser) 
-        để xác thực với Google API hoặc Firebase Auth.
-        """
-        email, ok = QInputDialog.getText(
-            self, 
-            "Xác thực Google OAuth", 
-            "Nhập tài khoản Gmail của bạn để tiếp tục:",
-            text="gamer.vangrok@gmail.com"
-        )
+        self.btn_google.setEnabled(False)
+        self.btn_google.setText("⏳ Đang mở trình duyệt...")
         
-        if ok and email.strip():
-            if "@" not in email:
-                QMessageBox.warning(self, "Lỗi", "Vui lòng nhập định dạng email hợp lệ!")
-                return
-                
-            # Lấy tên trước chữ @ làm username (Ví dụ: gamer.vangrok@gmail.com -> gamer.vangrok)
-            google_username = email.strip().split("@")[0]
-            
-            self.username = google_username
-            self.is_admin = False # Mặc định login Google là user thường
-            
-            QMessageBox.information(self, "Thành công", f"Đăng nhập thành công qua Google!\nXin chào: {google_username}")
-            self.accept() # Chuyển thẳng vào Launcher chính
+        self.google_worker = GoogleLoginWorker()
+        self.google_worker.finished_signal.connect(self.on_google_login_success)
+        self.google_worker.error_signal.connect(self.on_google_login_error)
+        self.google_worker.start()
+
+    def on_google_login_success(self, user_info):
+        self.btn_google.setEnabled(True)
+        self.btn_google.setText("🌐 Đăng nhập bằng Google")
+        
+        email = user_info.get("email", "")
+        full_name = user_info.get("name", "Gamer Vangrok")
+        
+        google_username = email.strip().split("@")[0] if email else "GoogleUser"
+        
+        self.username = google_username
+        self.is_admin = False 
+        
+        # [MỚI] Lưu session khi login google thành công
+        save_session(self.username, self.is_admin)
+        
+        QMessageBox.information(self, "Thành công", f"Đăng nhập thành công qua Google!\nXin chào: {full_name}\nEmail: {email}")
+        self.accept() 
+
+    def on_google_login_error(self, error_msg):
+        self.btn_google.setEnabled(True)
+        self.btn_google.setText("🌐 Đăng nhập bằng Google")
+        QMessageBox.critical(self, "Lỗi OAuth", error_msg)
 
     def handle_register(self):
         user = self.reg_user.text().strip()

@@ -1,11 +1,11 @@
 [
     {
-        "id": "sticky_cats",
-        "name": "Sticky Cats",
+        "id": "cursed_apartment",
+        "name": "Cursed Apartment",
         "version": "1.0.0",
-        "exe_path": "Sticky Cats.exe",
-        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/sticky_cats_cover.jpg",
-        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_sticky_cats/sticky_cats.zip",
-        "size_mb": 31.32
+        "exe_path": "Cursed Apartment.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/cursed_apartment_cover.png",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_cursed_apartment_1_0_0/cursed_apartment.zip",
+        "size": 492.85
     }
 ]

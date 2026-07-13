@@ -1,26 +1,29 @@
 import os
-import subprocess  # Thêm thư viện này để hỗ trợ nút Mở folder
-
-from ui.add_game_dialog import AddGameDialog
-from core.updater import check_launcher_update, LauncherUpdaterWorker
-# [MỚI] Thêm QMenu từ QtWidgets
+import subprocess
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
                              QLabel, QPushButton, QFrame, QStackedWidget, 
-                             QProgressBar, QLineEdit, QMessageBox, QFileDialog, QMenu)
-# [MỚI] Thêm QAction từ QtGui và QPoint từ QtCore
+                             QLineEdit, QMessageBox, QFileDialog, QMenu)
 from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtGui import QPixmap, QAction
-from ui.widgets.game_card import GameCard
-from core.game_manager import get_all_games, get_install_path, save_install_path, get_storage_info
+from PyQt6.QtGui import QPixmap, QAction, QFontDatabase
 
-# [MỚI] Import màn hình Login
+from ui.add_game_dialog import AddGameDialog
+from ui.widgets.game_card import GameCard
 from ui.login import LoginWindow 
+from ui.setting import SettingsPage
+from ui.store_build import StorePage  # Import file giao diện Store vừa tách
+from core.updater import check_launcher_update, LauncherUpdaterWorker
+from core.game_manager import get_all_games, get_install_path, save_install_path, get_storage_info
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class MainWindow(QMainWindow):
     def __init__(self, username, is_admin):
         super().__init__()
+        # --- TẢI FONT CHỮ TÙY CHỈNH TỪ THƯ MỤC LÊN ---
+        font_path = os.path.join(BASE_DIR, "assets", "fonts", "MontenegrinGothicOne-Regular.ttf")
+        if os.path.exists(font_path):
+            QFontDatabase.addApplicationFont(font_path)
+            
         self.username = username
         self.is_admin = is_admin
         self.games_data = get_all_games() # Load data game từ JSON
@@ -28,9 +31,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Vangrok Launcher")
         self.resize(1100, 650)
         
-        # 1. Ẩn thanh tiêu đề mặc định của Windows (Frameless Window)
+        # 1. Ẩn thanh tiêu đề mặc định của Windows
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.old_pos = None  # Biến lưu tọa độ chuột để kéo thả cửa sổ
+        self.old_pos = None
+        
+        # Danh sách quản lý các nút Navigation ở Sidebar để xử lý hiệu ứng Active
+        self.nav_buttons = []
         
         self.setup_ui()
         self.apply_styles()
@@ -43,8 +49,10 @@ class MainWindow(QMainWindow):
         self.btn_update_launcher.hide() 
         self.btn_update_launcher.clicked.connect(self.start_update_launcher)
         
-        # Chạy kiểm tra version
         self.check_version()
+        
+        # Mặc định mở Launcher là chọn nút Store
+        self.set_active_nav(self.btn_store)
         
     def setup_ui(self):
         main_widget = QWidget()
@@ -58,43 +66,49 @@ class MainWindow(QMainWindow):
         sidebar = QFrame()
         sidebar.setFixedWidth(220)
         sidebar.setObjectName("sidebar")
-        sidebar_layout = QVBoxLayout(sidebar)
+        self.sidebar_layout = QVBoxLayout(sidebar)
+        self.sidebar_layout.setContentsMargins(10, 20, 10, 20)
+        self.sidebar_layout.setSpacing(5)
         
         self.lbl_logo = QLabel()
         logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
-            self.lbl_logo.setPixmap(pixmap.scaled(180, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            # Tăng kích thước logo lên chiếm ~1/4 chiều cao navbar
+            self.lbl_logo.setPixmap(pixmap.scaled(200, 160, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         else:
             self.lbl_logo.setText("WM VANGROK")
             self.lbl_logo.setObjectName("logo_text")
+            self.lbl_logo.setStyleSheet("font-size: 26px; font-weight: bold; color: #ff4d4d; letter-spacing: 2px;")
         
         self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sidebar_layout.addWidget(self.lbl_logo)
+        self.sidebar_layout.addWidget(self.lbl_logo)
+        self.sidebar_layout.addSpacing(15)
         
-        btn_store = QPushButton("🎮Store")
-        btn_store.setObjectName("nav_btn_active")
-        btn_store.clicked.connect(lambda: self.content_area.setCurrentIndex(0))
-        sidebar_layout.addWidget(btn_store)
+        # --- NÚT STORE (Xem tất cả game) ---
+        self.btn_store = self.create_nav_button("STORE")
+        self.btn_store.clicked.connect(self.on_store_clicked)
+        self.sidebar_layout.addWidget(self.btn_store)
         
-        lbl_library = QLabel("LIBRARY")
-        lbl_library.setObjectName("library_title")
-        lbl_library.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sidebar_layout.addWidget(lbl_library)
+        # --- NÚT LIBRARY (Chỉ xem game đã tải/cài đặt) ---
+        self.btn_library = self.create_nav_button("LIBRARY")
+        self.btn_library.clicked.connect(self.on_library_clicked)
+        self.sidebar_layout.addWidget(self.btn_library)
         
-        for game in self.games_data:
-            # ĐÃ SỬA: Dùng "name" thay vì "title"
-            btn_game = QPushButton(game["name"])
-            btn_game.clicked.connect(lambda checked, g=game: self.show_game_detail(g))
-            sidebar_layout.addWidget(btn_game)
+        lbl_library_header = QLabel("INSTALLED GAMES")
+        lbl_library_header.setObjectName("library_title")
+        self.sidebar_layout.addWidget(lbl_library_header)
         
-        sidebar_layout.addStretch()
+        self.installed_games_layout = QVBoxLayout()
+        self.sidebar_layout.addLayout(self.installed_games_layout)
+        self.refresh_sidebar_installed_games()
         
-        # --- NÚT SETTINGS (Chuyển sang trang Index 2) ---
-        self.btn_setting = QPushButton("⚙ Setting")
-        self.btn_setting.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_setting.clicked.connect(lambda: self.content_area.setCurrentIndex(2))
-        sidebar_layout.addWidget(self.btn_setting)
+        self.sidebar_layout.addStretch()
+        
+        # --- NÚT SETTINGS ---
+        self.btn_setting = self.create_nav_button("⚙  Setting")
+        self.btn_setting.clicked.connect(self.on_setting_clicked)
+        self.sidebar_layout.addWidget(self.btn_setting)
         
         main_layout.addWidget(sidebar)
         
@@ -116,12 +130,10 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(self.btn_add_game)
         self.btn_add_game.clicked.connect(self.open_add_game_dialog)
         
-        # [MỚI] THAY THẾ LABEL USER CŨ BẰNG NÚT USER PROFILE CÓ MENU
         self.btn_user = QPushButton(f"👤 {self.username.upper()}  ▼")
         self.btn_user.setObjectName("btn_user")
         self.btn_user.setCursor(Qt.CursorShape.PointingHandCursor)
         
-        # Tạo Dropdown Menu cho nút User
         user_menu = QMenu(self)
         user_menu.setObjectName("user_menu")
         
@@ -132,15 +144,13 @@ class MainWindow(QMainWindow):
         action_logout.triggered.connect(self.log_out)
         
         user_menu.addAction(action_change_acc)
-        user_menu.addSeparator() # Đường kẻ ngang phân cách
+        user_menu.addSeparator() 
         user_menu.addAction(action_logout)
         
-        # Gắn menu vào nút
         self.btn_user.setMenu(user_menu)
         top_layout.addWidget(self.btn_user)
-        # -----------------------------------------------------------------
         
-        # 2. Thêm các nút điều khiển cửa sổ (Minimize, Maximize, Close)
+        # Nút điều khiển cửa sổ
         self.btn_min = QPushButton("—")
         self.btn_max = QPushButton("☐")
         self.btn_close = QPushButton("✕")
@@ -159,174 +169,142 @@ class MainWindow(QMainWindow):
         
         right_layout.addWidget(top_bar)
         
+        # ================= STACKED WIDGET (CÁC TRANG) =================
         self.content_area = QStackedWidget()
-        self.build_store_page()       # Index 0: Store
-        self.build_detail_page()      # Index 1: Detail Game
-        self.build_settings_page()    # Index 2: Settings Page
+        
+        self.store_page = StorePage(self.games_data, self)
+        self.store_page.game_detail_requested.connect(self.show_game_detail)
+        self.content_area.addWidget(self.store_page)  # Index 0: Store 
+        
+        self.build_library_page()     # Index 1: Library
+        self.build_detail_page()      # Index 2: Detail Game
+        
+        # Gọi Class Setting Page và các kết nối Signal
+        self.settings_page = SettingsPage(self)
+        self.settings_page.set_current_username(self.username)
+        self.settings_page.path_changed_signal.connect(self.update_storage_ui)
+        self.settings_page.username_changed_signal.connect(self.update_ui_username)
+        self.content_area.addWidget(self.settings_page) # Index 3: Setting
         
         right_layout.addWidget(self.content_area)
         main_layout.addWidget(right_panel)
 
-    def change_account(self):
-        """Bật cờ yêu cầu đăng xuất và đóng Launcher"""
-        self.logout_requested = True
-        self.close()
+    # --- HÀM TẠO VÀ XỬ LÝ NÚT NAVIGATION ĐỘNG ---
+    def create_nav_button(self, text):
+        btn = QPushButton(text)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setProperty("nav_btn", "true")
+        btn.setProperty("active", "false")
+        self.nav_buttons.append(btn)
+        return btn
 
-    def log_out(self):
-        """Hỏi xác nhận trước khi đăng xuất"""
-        reply = QMessageBox.question(
-            self, 
-            "Đăng xuất", 
-            "Bạn có chắc chắn muốn đăng xuất khỏi tài khoản này?", 
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            self.logout_requested = True
-            self.close()
-            self.login_win = LoginWindow()
-            self.login_win.show()
-    # ---------------------------------------------------------------
+    def set_active_nav(self, active_btn):
+        for btn in self.nav_buttons:
+            if btn == active_btn:
+                btn.setProperty("active", "true")
+            else:
+                btn.setProperty("active", "false")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
 
-    # 3. Các hàm xử lý kéo thả cửa sổ và phóng to/thu nhỏ
-    def toggle_maximize(self):
-        if self.isMaximized():
-            self.showNormal()
-        else:
-            self.showMaximized()
+    def on_store_clicked(self):
+        self.set_active_nav(self.btn_store)
+        self.content_area.setCurrentIndex(0)
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.old_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            event.accept()
+    def on_library_clicked(self):
+        self.set_active_nav(self.btn_library)
+        self.refresh_library_page()
+        self.content_area.setCurrentIndex(1)
 
-    def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.MouseButton.LeftButton and self.old_pos is not None:
-            self.move(event.globalPosition().toPoint() - self.old_pos)
-            event.accept()
+    def on_setting_clicked(self):
+        self.set_active_nav(self.btn_setting)
+        self.settings_page.update_storage_ui()
+        self.content_area.setCurrentIndex(3)
 
-    def build_store_page(self):
-        store_page = QWidget()
-        layout = QVBoxLayout(store_page)
-        layout.setContentsMargins(30, 20, 30, 20)
+    def update_ui_username(self, new_name):
+        self.username = new_name
+        self.btn_user.setText(f"👤 {self.username.upper()}  ▼")
+
+    # --- LỌC VÀ HIỂN THỊ CHỈ GAME ĐÃ TẢI Ở SIDEBAR ---
+    def refresh_sidebar_installed_games(self):
+        while self.installed_games_layout.count():
+            item = self.installed_games_layout.takeAt(0)
+            if item.widget():
+                if item.widget() in self.nav_buttons:
+                    self.nav_buttons.remove(item.widget())
+                item.widget().deleteLater()
+                
+        installed_games = [g for g in self.games_data if g.get("status", "Install") in ["Play", "Update"]]
         
-        header_layout = QHBoxLayout()
-        title_layout = QVBoxLayout()
-        lbl_store = QLabel("STORE")
-        lbl_store.setStyleSheet("font-size: 56px; font-weight: bold; color: white; letter-spacing: 2px;")
-        lbl_desc = QLabel("Install and purchase items")
-        lbl_desc.setStyleSheet("font-size: 18px; color: white;")
+        if not installed_games:
+            lbl_empty = QLabel("Chưa cài game nào")
+            lbl_empty.setStyleSheet("color: #666666; font-size: 13px; font-style: italic; padding-left: 15px;")
+            self.installed_games_layout.addWidget(lbl_empty)
+        else:
+            for game in installed_games:
+                btn_game = self.create_nav_button(f"▪ {game['name']}")
+                btn_game.setStyleSheet("padding-left: 25px; font-size: 14px; font-weight: normal;") 
+                btn_game.clicked.connect(lambda checked, g=game, b=btn_game: self.on_sidebar_game_clicked(g, b))
+                self.installed_games_layout.addWidget(btn_game)
+
+    def on_sidebar_game_clicked(self, game_data, btn_clicked):
+        self.set_active_nav(btn_clicked)
+        self.show_game_detail(game_data)
+
+    # --- HÀM XỬ LÝ TRANG LIBRARY ---
+    def build_library_page(self):
+        self.library_page = QWidget()
+        self.library_layout = QVBoxLayout(self.library_page)
+        self.library_layout.setContentsMargins(30, 20, 30, 20)
+        
+        lbl_title = QLabel("MY LIBRARY")
+        lbl_title.setStyleSheet("font-size: 40px; font-weight: bold; color: white; letter-spacing: 1px;")
+        self.library_layout.addWidget(lbl_title)
         
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("border-top: 2px solid white; max-width: 200px;")
+        line.setStyleSheet("border-top: 2px solid #ff4d4d; margin-bottom: 20px;")
+        self.library_layout.addWidget(line)
         
-        title_layout.addWidget(lbl_store)
-        title_layout.addWidget(line)
-        title_layout.addWidget(lbl_desc)
-        header_layout.addLayout(title_layout)
-        header_layout.addStretch()
+        self.library_grid_layout = QHBoxLayout()
+        self.library_grid_layout.setSpacing(20)
+        self.library_layout.addLayout(self.library_grid_layout)
+        self.library_layout.addStretch()
         
-        # --- KHU VỰC HIỂN THỊ DUNG LƯỢNG Ổ ĐĨA ---
-        storage_frame = QFrame()
-        storage_frame.setObjectName("storage_frame")
-        storage_layout = QVBoxLayout(storage_frame)
-        
-        self.lbl_storage = QLabel("Storage: Đang tính...\nfree")
-        self.lbl_storage.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_storage.setStyleSheet("color: white; font-weight: bold;")
-        
-        self.progress_storage = QProgressBar()
-        self.progress_storage.setTextVisible(False)
-        self.progress_storage.setFixedHeight(10)
-        self.progress_storage.setObjectName("storage_progress")
-        
-        storage_layout.addWidget(self.lbl_storage)
-        storage_layout.addWidget(self.progress_storage)
-        header_layout.addWidget(storage_frame)
-        
-        layout.addLayout(header_layout)
-        
-        search_layout = QHBoxLayout()
-        search_layout.addStretch()
-        search_bar = QLineEdit()
-        search_bar.setPlaceholderText("🔍 SEARCH")
-        search_bar.setFixedWidth(200)
-        search_bar.setObjectName("search_bar")
-        search_layout.addWidget(search_bar)
-        layout.addLayout(search_layout)
-        
-        banner = QFrame()
-        banner.setObjectName("banner")
-        banner.setFixedHeight(140)
-        banner_layout = QHBoxLayout(banner)
-        banner_layout.setContentsMargins(20, 20, 20, 20)
-        
-        # ĐÃ SỬA: Đảm bảo dùng key "name"
-        banner_title = self.games_data[0]["name"] if self.games_data else "Game"
-        banner_ver = self.games_data[0]["version"] if self.games_data else "x.x.x"
-        banner_size = self.games_data[0]["size"] if self.games_data else "N/A GB"
-        
-        banner_info = QVBoxLayout()
-        lbl_banner_title = QLabel(banner_title)
-        lbl_banner_title.setStyleSheet("font-size: 24px; color: white; font-weight: bold;")
-        lbl_banner_ver = QLabel(f"Ver {banner_ver}")
-        lbl_banner_ver.setStyleSheet("color: white;")
-        banner_info.addStretch()
-        banner_info.addWidget(lbl_banner_title)
-        banner_info.addWidget(lbl_banner_ver)
-        
-        banner_center = QLabel("IMAGE BANNER")
-        banner_center.setStyleSheet("font-size: 20px; color: white;")
-        banner_center.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        banner_action = QVBoxLayout()
-        banner_action.addStretch()
-        lbl_banner_size = QLabel(banner_size)
-        lbl_banner_size.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_banner_size.setStyleSheet("color: white;")
-        btn_banner_install = QPushButton("Install")
-        btn_banner_install.setFixedWidth(120)
-        btn_banner_install.setObjectName("btn_action")
-        banner_action.addWidget(lbl_banner_size)
-        banner_action.addWidget(btn_banner_install)
-        
-        banner_layout.addLayout(banner_info)
-        banner_layout.addWidget(banner_center, stretch=1)
-        banner_layout.addLayout(banner_action)
-        layout.addWidget(banner)
-        
-        grid_layout = QHBoxLayout()
-        grid_layout.setSpacing(20)
-        
-        for game in self.games_data:
-            card = GameCard(game)
-            card.card_clicked.connect(self.show_game_detail)
-            grid_layout.addWidget(card)
-            
-        grid_layout.addStretch()
-        layout.addLayout(grid_layout)
-        layout.addStretch()
-        
-        self.content_area.addWidget(store_page)
+        self.content_area.addWidget(self.library_page)
 
+    def refresh_library_page(self):
+        while self.library_grid_layout.count():
+            item = self.library_grid_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+                
+        installed_games = [g for g in self.games_data if g.get("status", "Install") in ["Play", "Update"]]
+        
+        if not installed_games:
+            lbl_empty_lib = QLabel("Bạn chưa tải trò chơi nào.\nHãy sang mục Store để khám phá và cài đặt game")
+            lbl_empty_lib.setStyleSheet("color: #aaaaaa; font-size: 18px; line-height: 1.5;")
+            lbl_empty_lib.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.library_grid_layout.addWidget(lbl_empty_lib)
+        else:
+            for game in installed_games:
+                card = GameCard(game)
+                card.card_clicked.connect(self.show_game_detail)
+                self.library_grid_layout.addWidget(card)
+            self.library_grid_layout.addStretch()
+
+    # --- HÀM XỬ LÝ TRANG CHI TIẾT GAME ---
     def build_detail_page(self):
         self.detail_page = QWidget()
         layout = QVBoxLayout(self.detail_page)
         layout.setContentsMargins(30, 20, 30, 20)
         
-        btn_back = QPushButton("⬅ Quay lại Store")
+        btn_back = QPushButton("⬅ Quay lại")
         btn_back.setStyleSheet("color: #ff4d4d; font-size: 16px; font-weight: bold; text-align: left; padding: 0px; margin-bottom: 15px;")
-        btn_back.setFixedWidth(180)
+        btn_back.setFixedWidth(120)
         btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_back.clicked.connect(lambda: self.content_area.setCurrentIndex(0))
+        btn_back.clicked.connect(self.on_store_clicked)
         layout.addWidget(btn_back)
-        
-        self.detail_banner = QLabel()
-        self.detail_banner.setFixedHeight(220)
-        self.detail_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.detail_banner.setStyleSheet("background-color: #2b2b2b; border-radius: 10px; border: 1px solid #555;")
-        layout.addWidget(self.detail_banner)
         
         header_layout = QHBoxLayout()
         self.detail_title = QLabel("Game Title")
@@ -360,119 +338,6 @@ class MainWindow(QMainWindow):
         
         self.content_area.addWidget(self.detail_page)
 
-    def build_settings_page(self):
-        settings_page = QWidget()
-        layout = QVBoxLayout(settings_page)
-        layout.setContentsMargins(30, 20, 30, 20)
-        
-        lbl_title = QLabel("SETTINGS")
-        lbl_title.setStyleSheet("font-size: 40px; font-weight: bold; color: white; letter-spacing: 1px;")
-        layout.addWidget(lbl_title)
-        
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("border-top: 2px solid #ff4d4d; margin-bottom: 20px;")
-        layout.addWidget(line)
-        
-        lbl_sec1 = QLabel("📁 THƯ MỤC CÀI ĐẶT GAME")
-        lbl_sec1.setStyleSheet("color: #ff4d4d; font-size: 16px; font-weight: bold; margin-top: 10px;")
-        layout.addWidget(lbl_sec1)
-        
-        folder_card = QFrame()
-        folder_card.setStyleSheet("background-color: #2b2b2b; border-radius: 8px; padding: 15px; border: 1px solid #444;")
-        folder_layout = QVBoxLayout(folder_card)
-        
-        path_layout = QHBoxLayout()
-        self.lbl_current_path_display = QLabel(f"Location: {get_install_path()}")
-        self.lbl_current_path_display.setStyleSheet("color: white; font-size: 15px; font-weight: bold;")
-        path_layout.addWidget(self.lbl_current_path_display)
-        path_layout.addStretch()
-        
-        btn_change_path = QPushButton("Thay Đổi Thư Mục")
-        btn_change_path.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_change_path.setStyleSheet("""
-            QPushButton { background-color: #555555; color: white; border-radius: 5px; padding: 8px 15px; font-size: 14px; text-align: center; font-weight: bold; }
-            QPushButton:hover { background-color: #ff4d4d; }
-        """)
-        btn_change_path.clicked.connect(self.change_install_folder)
-        path_layout.addWidget(btn_change_path)
-        
-        btn_open_folder = QPushButton("📂 Mở Thư Mục")
-        btn_open_folder.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_open_folder.setStyleSheet("""
-            QPushButton { background-color: #34495e; color: white; border-radius: 5px; padding: 8px 15px; font-size: 14px; text-align: center; font-weight: bold; }
-            QPushButton:hover { background-color: #2980b9; }
-        """)
-        btn_open_folder.clicked.connect(self.open_install_folder_in_explorer)
-        path_layout.addWidget(btn_open_folder)
-        
-        folder_layout.addLayout(path_layout)
-        
-        self.lbl_setting_storage_detail = QLabel("Ổ đĩa: Đang tính...")
-        self.lbl_setting_storage_detail.setStyleSheet("color: #aaaaaa; font-size: 13px; margin-top: 5px;")
-        folder_layout.addWidget(self.lbl_setting_storage_detail)
-        
-        layout.addWidget(folder_card)
-        
-        lbl_sec2 = QLabel("🚀 TÙY CHỌN KHÁC (SẮP RA MẮT)")
-        lbl_sec2.setStyleSheet("color: #ff4d4d; font-size: 16px; font-weight: bold; margin-top: 25px;")
-        layout.addWidget(lbl_sec2)
-        
-        other_card = QFrame()
-        other_card.setStyleSheet("background-color: #2b2b2b; border-radius: 8px; padding: 15px; border: 1px solid #444;")
-        other_layout = QVBoxLayout(other_card)
-        lbl_dummy = QLabel("• Tự động cập nhật game khi khởi động Launcher\n• Chạy Launcher cùng hệ thống Windows\n• Giới hạn tốc độ tải xuống (Bandwidth limit)")
-        lbl_dummy.setStyleSheet("color: #888888; font-size: 14px; line-height: 1.5;")
-        other_layout.addWidget(lbl_dummy)
-        layout.addWidget(other_card)
-        
-        layout.addStretch()
-        self.content_area.addWidget(settings_page)
-
-    def update_storage_ui(self):
-        current_path = get_install_path()
-        total_gb, used_gb, free_gb = get_storage_info(current_path)
-        
-        drive_name = os.path.splitdrive(current_path)[0]
-        if not drive_name:
-            drive_name = "Disk"
-            
-        self.lbl_storage.setText(f"Drive {drive_name}\n{free_gb} GB free")
-        self.progress_storage.setMaximum(total_gb)
-        self.progress_storage.setValue(used_gb)
-        
-        if hasattr(self, 'lbl_current_path_display'):
-            self.lbl_current_path_display.setText(f"Đường dẫn: {current_path}")
-            self.lbl_setting_storage_detail.setText(
-                f"Ổ đang chọn: {drive_name}  |  Tổng dung lượng: {total_gb} GB  |  Đã dùng: {used_gb} GB  |  Còn trống: {free_gb} GB"
-            )
-
-    def change_install_folder(self):
-        current_path = get_install_path()
-        selected_dir = QFileDialog.getExistingDirectory(
-            self, 
-            "Chọn Thư Mục Cài Đặt Game Mặc Định", 
-            current_path
-        )
-        
-        if selected_dir:
-            selected_dir = os.path.normpath(selected_dir)
-            save_install_path(selected_dir)
-            self.update_storage_ui()
-            
-            QMessageBox.information(
-                self, 
-                "Thành Công", 
-                f"Đã thay đổi thư mục cài đặt mặc định sang:\n{selected_dir}"
-            )
-
-    def open_install_folder_in_explorer(self):
-        current_path = get_install_path()
-        if os.path.exists(current_path):
-            os.startfile(current_path)
-        else:
-            QMessageBox.warning(self, "Lỗi", "Thư mục hiện tại không tồn tại trên máy tính!")
-
     def show_game_detail(self, game_data):
         self.detail_title.setText(game_data.get("name", "Unknown Game"))
         
@@ -487,48 +352,70 @@ class MainWindow(QMainWindow):
             
         default_desc = "Trò chơi này hiện chưa có bài viết mô tả chi tiết từ quản trị viên Vangrok.\n\nHãy nhấn nút bên trên để cài đặt và trải nghiệm cùng bạn bè ngay!"
         self.detail_desc.setText(game_data.get("description", default_desc))
-        
-        banner_path = os.path.join(BASE_DIR, game_data.get("banner", ""))
-        thumb_path = os.path.join(BASE_DIR, game_data.get("thumbnail", ""))
-        
-        target_img = banner_path if (os.path.exists(banner_path) and os.path.isfile(banner_path)) else thumb_path
-        
-        if os.path.exists(target_img) and os.path.isfile(target_img):
-            pixmap = QPixmap(target_img)
-            self.detail_banner.setPixmap(
-                pixmap.scaled(850, 220, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
-            )
-            self.detail_banner.setText("")
-        else:
-            self.detail_banner.clear()
-            # ĐÃ SỬA: Đảm bảo dùng "name" ở text dự phòng
-            self.detail_banner.setText(f"IMAGE BANNER: {game_data.get('name', '').upper()}")
-            self.detail_banner.setStyleSheet("background-color: #2b2b2b; color: white; font-size: 24px; font-weight: bold; border-radius: 10px; border: 1px solid #555;")
             
-        self.content_area.setCurrentIndex(1)
+        self.content_area.setCurrentIndex(2)
 
+    # --- TÍNH TOÁN DUNG LƯỢNG Ổ ĐĨA ---
+    def update_storage_ui(self):
+        current_path = get_install_path()
+        total_gb, used_gb, free_gb = get_storage_info(current_path)
+        
+        drive_name = os.path.splitdrive(current_path)[0]
+        if not drive_name:
+            drive_name = "Disk"
+            
+        self.store_page.update_storage(drive_name, free_gb, total_gb, used_gb)
+
+    # --- HÀM CẤU HÌNH GIAO DIỆN VÀ CSS ĐỘNG ---
     def apply_styles(self):
         self.setStyleSheet("""
+            QWidget { 
+                font-family: 'Montenegrin Gothic One', 'MontenegrinGothicOne-Regular', 'Orbitron', 'Rajdhani', 'Segoe UI', sans-serif; 
+            }
+            
             QMainWindow { background-color: #3b3b3b; }
             #sidebar {
                 background-color: #2b2b2b;
                 border-right: 1px solid #ff4d4d;
             }
             #right_panel { background-color: #4a4a4a; }
-            QLabel { font-family: 'Segoe UI', Arial; }
             
-            QPushButton {
-                background-color: transparent; color: white; border: none;
-                padding: 12px; font-size: 18px; text-align: left; padding-left: 40px;
+            QPushButton[nav_btn="true"] {
+                background-color: transparent; 
+                color: #cccccc; 
+                border: none;
+                border-left: 3px solid transparent;
+                padding: 12px 15px; 
+                font-size: 18px;
+                font-weight: 600;
+                text-align: left;
+                border-radius: 0px;
+                letter-spacing: 1px;
             }
-            QPushButton:hover { background-color: #444444; }
-            #nav_btn_active { background-color: #555555; border-radius: 5px; }
+            QPushButton[nav_btn="true"]:hover { 
+                background-color: #383838; 
+                color: #ffffff; 
+            }
+            QPushButton[nav_btn="true"][active="true"] { 
+                background-color: #444444; 
+                color: #ff4d4d;            
+                font-weight: bold;
+                border-left: 3px solid #ff4d4d; 
+            }
             
-            #library_title { color: #ff4d4d; font-size: 22px; margin-top: 20px; margin-bottom: 10px; }
+            #library_title { 
+                color: #888888; 
+                font-size: 14px; 
+                font-weight: bold; 
+                margin-top: 30px; 
+                margin-bottom: 5px; 
+                padding-left: 15px; 
+                letter-spacing: 1.5px;
+            }
             
             #btn_admin {
                 background-color: transparent; border: 1px solid #ff4d4d; color: #ff4d4d;
-                border-radius: 5px; padding: 5px 15px; text-align: center; font-size: 12px;
+                border-radius: 5px; padding: 5px 15px; text-align: center; font-size: 13px; font-weight: bold;
             }
             #btn_admin:hover { background-color: #ff4d4d; color: white; }
             
@@ -539,16 +426,11 @@ class MainWindow(QMainWindow):
             #storage_progress { border: none; background-color: #2b2b2b; border-radius: 5px; }
             #storage_progress::chunk { background-color: #3498db; border-radius: 5px; }
             
-            #banner { background-color: #2b2b2b; border-radius: 15px; margin-top: 10px; margin-bottom: 20px; }
-            
             #game_card { 
-                background-color: #2b2b2b; 
-                border-radius: 8px; 
-                border: 1px solid transparent; 
+                background-color: #2b2b2b; border-radius: 8px; border: 1px solid transparent; 
             }
             #game_card:hover { 
-                background-color: #383838; 
-                border: 1px solid #ff4d4d; 
+                background-color: #383838; border: 1px solid #ff4d4d; 
             }
             
             #btn_action { border-radius: 5px; padding: 5px; font-size: 14px; text-align: center; margin: 0px 5px 5px 5px; }
@@ -558,7 +440,6 @@ class MainWindow(QMainWindow):
                 border-radius: 10px; padding: 5px 15px; font-size: 14px; margin-bottom: 10px;
             }
 
-            /* Style cho 3 nút điều khiển góc trên bên phải */
             #btn_win_ctrl, #btn_win_close {
                 background-color: transparent; color: #aaaaaa; border: none;
                 padding: 5px 12px; font-size: 14px; font-weight: bold;
@@ -567,50 +448,54 @@ class MainWindow(QMainWindow):
             #btn_win_ctrl:hover { background-color: #555555; color: white; }
             #btn_win_close:hover { background-color: #e81123; color: white; }
 
-            /* [MỚI] Style cho Nút User Profile */
             #btn_user {
-                background-color: #2b2b2b;
-                color: white;
-                border: 1px solid #555555;
-                border-radius: 15px;
-                padding: 5px 15px;
-                font-size: 13px;
-                font-weight: bold;
-                text-align: center;
-                margin-right: 15px;
+                background-color: #2b2b2b; color: white; border: 1px solid #555555;
+                border-radius: 15px; padding: 5px 15px; font-size: 13px;
+                font-weight: bold; text-align: center; margin-right: 15px;
             }
-            #btn_user:hover {
-                background-color: #383838;
-                border: 1px solid #ff4d4d;
-            }
-            /* Ẩn mũi tên xổ xuống mặc định xấu xí của PyQt để dùng ký tự ▼ cho đồng bộ */
-            #btn_user::menu-indicator {
-                image: none; 
-            }
+            #btn_user:hover { background-color: #383838; border: 1px solid #ff4d4d; }
+            #btn_user::menu-indicator { image: none; }
 
-            /* [MỚI] Style cho Dropdown Menu (QMenu) */
             QMenu {
-                background-color: #2b2b2b;
-                color: white;
-                border: 1px solid #ff4d4d;
-                border-radius: 8px;
-                padding: 5px 0px;
+                background-color: #2b2b2b; color: white; border: 1px solid #ff4d4d;
+                border-radius: 8px; padding: 5px 0px;
             }
-            QMenu::item {
-                padding: 8px 25px 8px 15px;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QMenu::item:selected {
-                background-color: #ff4d4d;
-                color: white;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #444444;
-                margin: 4px 0px;
-            }
+            QMenu::item { padding: 8px 25px 8px 15px; font-size: 13px; font-weight: bold; }
+            QMenu::item:selected { background-color: #ff4d4d; color: white; }
+            QMenu::separator { height: 1px; background-color: #444444; margin: 4px 0px; }
         """)
+
+    def change_account(self):
+        self.logout_requested = True
+        self.close()
+
+    def log_out(self):
+        reply = QMessageBox.question(
+            self, "Đăng xuất", "Bạn có chắc chắn muốn đăng xuất khỏi tài khoản này?", 
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.logout_requested = True
+            self.close()
+            self.login_win = LoginWindow()
+            self.login_win.show()
+
+    def toggle_maximize(self):
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.old_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.MouseButton.LeftButton and self.old_pos is not None:
+            self.move(event.globalPosition().toPoint() - self.old_pos)
+            event.accept()
 
     def open_add_game_dialog(self):
         dialog = AddGameDialog(self)
@@ -620,13 +505,11 @@ class MainWindow(QMainWindow):
         needs_update, new_version = check_launcher_update()
         if needs_update:
             self.btn_update_launcher.setText(f"Có bản mới (v{new_version}) - Cập nhật ngay!")
-            self.btn_update_launcher.show() # Hiện nút lên để người dùng bấm
+            self.btn_update_launcher.show()
 
     def start_update_launcher(self):
-        # Khi người dùng nhấp vào nút Update
         self.btn_update_launcher.setEnabled(False)
         self.btn_update_launcher.setText("Đang tải bản cập nhật...")
-        
         self.updater_worker = LauncherUpdaterWorker()
         self.updater_worker.status_signal.connect(lambda status: self.btn_update_launcher.setText(status))
         self.updater_worker.finished_signal.connect(self.on_update_finished)
@@ -635,7 +518,6 @@ class MainWindow(QMainWindow):
     def on_update_finished(self, success, message):
         if success:
             QMessageBox.information(self, "Cập nhật thành công", message)
-            # Thoát ngay lập tức để file .bat (đã kích hoạt) làm nhiệm vụ ghi đè code
             self.close() 
         else:
             QMessageBox.critical(self, "Lỗi", message)

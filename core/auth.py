@@ -1,3 +1,5 @@
+# core/auth.py
+
 import json
 import hashlib
 import os
@@ -6,6 +8,8 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE_DIR, 'config', 'config.json')
 USERS_DB_PATH = os.path.join(BASE_DIR, 'config', 'users.json')
+# [MỚI] Đường dẫn lưu phiên đăng nhập
+SESSION_PATH = os.path.join(BASE_DIR, 'config', 'session.json') 
 
 def hash_password(password: str) -> str:
     """Băm mật khẩu bằng SHA-256 để không lộ mật khẩu gốc"""
@@ -85,3 +89,65 @@ def reset_password(username, email, new_password):
         json.dump(users, f, indent=4)
         
     return True, "Khôi phục mật khẩu thành công!"
+
+# ================= CÁC HÀM XỬ LÝ SESSION (KEEP ME LOGGED IN) =================
+
+def save_session(username, is_admin):
+    """Lưu phiên đăng nhập hiện tại vào file JSON"""
+    session_data = {
+        "username": username,
+        "is_admin": is_admin
+    }
+    # Đảm bảo thư mục config tồn tại
+    os.makedirs(os.path.dirname(SESSION_PATH), exist_ok=True)
+    with open(SESSION_PATH, 'w', encoding='utf-8') as f:
+        json.dump(session_data, f, indent=4)
+
+def get_current_session():
+    """Kiểm tra và trả về thông tin đăng nhập cũ nếu có"""
+    if os.path.exists(SESSION_PATH):
+        try:
+            with open(SESSION_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
+
+def clear_session():
+    """Đăng xuất: Xóa file lưu trữ phiên đăng nhập"""
+    if os.path.exists(SESSION_PATH):
+        try:
+            os.remove(SESSION_PATH)
+        except Exception:
+            pass
+
+def change_db_username(old_username, new_username):
+    """
+    Đổi tên user trong users.json và cập nhật session.
+    Trả về tuple: (Thành công/Thất bại, Thông báo)
+    """
+    if not os.path.exists(USERS_DB_PATH):
+        return False, "Không tìm thấy cơ sở dữ liệu người dùng."
+        
+    with open(USERS_DB_PATH, 'r', encoding='utf-8') as f:
+        users = json.load(f)
+        
+    if old_username not in users:
+        return False, "Tài khoản hiện tại không tồn tại trong hệ thống."
+        
+    if new_username in users:
+        return False, "Tên đăng nhập mới đã có người sử dụng. Vui lòng chọn tên khác."
+        
+    # Chuyển dữ liệu từ key cũ sang key mới và xóa key cũ
+    users[new_username] = users.pop(old_username)
+    
+    # Lưu lại vào users.json
+    with open(USERS_DB_PATH, 'w', encoding='utf-8') as f:
+        json.dump(users, f, indent=4)
+        
+    # Cập nhật lại session.json nếu user đang đổi tên chính là user đang đăng nhập
+    current_session = get_current_session()
+    if current_session and current_session.get("username") == old_username:
+        save_session(new_username, current_session.get("is_admin", False))
+        
+    return True, "Đổi tên thành công!"
