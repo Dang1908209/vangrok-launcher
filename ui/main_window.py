@@ -1,8 +1,10 @@
 import os
 import subprocess
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
-                             QLabel, QPushButton, QFrame, QStackedWidget, 
-                             QLineEdit, QMessageBox, QFileDialog, QMenu)
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
+    QLabel, QPushButton, QFrame, QStackedWidget, 
+    QLineEdit, QMessageBox, QFileDialog, QMenu
+)
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtGui import QPixmap, QAction, QFontDatabase
 
@@ -75,7 +77,6 @@ class MainWindow(QMainWindow):
         logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
-            # Tăng kích thước logo lên chiếm ~1/4 chiều cao navbar
             self.lbl_logo.setPixmap(pixmap.scaled(200, 160, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         else:
             self.lbl_logo.setText("WM VANGROK")
@@ -86,12 +87,12 @@ class MainWindow(QMainWindow):
         self.sidebar_layout.addWidget(self.lbl_logo)
         self.sidebar_layout.addSpacing(15)
         
-        # --- NÚT STORE (Xem tất cả game) ---
+        # --- NÚT STORE ---
         self.btn_store = self.create_nav_button("STORE")
         self.btn_store.clicked.connect(self.on_store_clicked)
         self.sidebar_layout.addWidget(self.btn_store)
         
-        # --- NÚT LIBRARY (Chỉ xem game đã tải/cài đặt) ---
+        # --- NÚT LIBRARY ---
         self.btn_library = self.create_nav_button("LIBRARY")
         self.btn_library.clicked.connect(self.on_library_clicked)
         self.sidebar_layout.addWidget(self.btn_library)
@@ -179,12 +180,10 @@ class MainWindow(QMainWindow):
         
         self.build_library_page()     # Index 1: Library
 
-        # --- GỌI CLASS GAME DETAIL PAGE ĐÃ TÁCH ---
         self.detail_page = GameDetailPage(base_dir=BASE_DIR, parent=self)
-        self.detail_page.back_requested.connect(self.on_store_clicked) # Xử lý nút quay lại
+        self.detail_page.back_requested.connect(self.on_store_clicked) 
         self.content_area.addWidget(self.detail_page) # Index 2: Detail Game
         
-        # Gọi Class Setting Page và các kết nối Signal
         self.settings_page = SettingsPage(self)
         self.settings_page.set_current_username(self.username)
         self.settings_page.path_changed_signal.connect(self.update_storage_ui)
@@ -194,7 +193,6 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(self.content_area)
         main_layout.addWidget(right_panel)
 
-    # --- HÀM TẠO VÀ XỬ LÝ NÚT NAVIGATION ĐỘNG ---
     def create_nav_button(self, text):
         btn = QPushButton(text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -213,12 +211,16 @@ class MainWindow(QMainWindow):
             btn.style().polish(btn)
 
     def on_store_clicked(self):
+        self.games_data = get_all_games()
+        self.refresh_sidebar_installed_games()
         self.set_active_nav(self.btn_store)
         self.content_area.setCurrentIndex(0)
 
     def on_library_clicked(self):
-        self.set_active_nav(self.btn_library)
+        self.games_data = get_all_games()
+        self.refresh_sidebar_installed_games()
         self.refresh_library_page()
+        self.set_active_nav(self.btn_library)
         self.content_area.setCurrentIndex(1)
 
     def on_setting_clicked(self):
@@ -230,7 +232,73 @@ class MainWindow(QMainWindow):
         self.username = new_name
         self.btn_user.setText(f"👤 {self.username.upper()}  ▼")
 
-    # --- LỌC VÀ HIỂN THỊ CHỈ GAME ĐÃ TẢI Ở SIDEBAR ---
+    # =========================================================================
+    # --- HÀM QUÉT THƯ MỤC CHUYÊN NGHIỆP: QUÉT SONG SONG + CHUẨN HÓA TỆP ---
+    # =========================================================================
+    def get_installed_games(self):
+        installed = []
+        
+        # 1. Xác định tất cả các thư mục cần quét tìm game
+        dirs_to_scan = []
+        
+        # - Thư mục mặc định ở gốc dự án
+        default_dir = os.path.abspath(os.path.join(BASE_DIR, "installed_games"))
+        if os.path.exists(default_dir):
+            dirs_to_scan.append(default_dir)
+            
+        # - Thư mục tùy chỉnh cấu hình trong Settings
+        custom_dir = get_install_path()
+        if custom_dir:
+            custom_dir = os.path.abspath(custom_dir)
+            if os.path.exists(custom_dir) and custom_dir not in dirs_to_scan:
+                dirs_to_scan.append(custom_dir)
+                
+        # 2. Đọc toàn bộ tên các thư mục con có trong các vùng quét trên
+        existing_folders = set()
+        for directory in dirs_to_scan:
+            try:
+                for f in os.listdir(directory):
+                    if os.path.isdir(os.path.join(directory, f)):
+                        existing_folders.add(f.lower().strip())
+            except Exception as e:
+                print(f"[Error] Lỗi quét thư mục {directory}: {e}")
+                
+        # 3. Định nghĩa bộ chuẩn hóa chuỗi siêu mạnh mẽ (Bỏ hoa-thường, khoảng trắng, gạch dưới, gạch ngang)
+        def normalize_string(text):
+            if not text:
+                return ""
+            # Giữ lại chỉ các chữ cái và chữ số
+            return "".join(char for char in str(text).lower() if char.isalnum())
+            
+        # Chuẩn hóa toàn bộ danh sách thư mục tìm thấy ngoài đời thực
+        normalized_folders_on_disk = {normalize_string(folder) for folder in existing_folders}
+        
+        # 4. Đối chiếu thông minh với cơ sở dữ liệu games_data
+        for g in self.games_data:
+            # Check trạng thái từ JSON trước
+            status = str(g.get("status", "")).strip().lower()
+            is_installed_by_status = status in ["play", "update", "installed", "chơi ngay", "ready"]
+            
+            # Chuẩn hóa các thông số định danh của game từ JSON
+            g_name_norm = normalize_string(g.get("name", ""))
+            g_id_norm = normalize_string(g.get("id", ""))
+            g_folder_norm = normalize_string(g.get("folder_name", ""))
+            
+            # So khớp chuẩn hóa giữa dữ liệu JSON và Folder trên đĩa cứng
+            is_installed_physically = (
+                (g_name_norm and g_name_norm in normalized_folders_on_disk) or
+                (g_id_norm and g_id_norm in normalized_folders_on_disk) or
+                (g_folder_norm and g_folder_norm in normalized_folders_on_disk)
+            )
+            
+            # Nếu khớp một trong hai điều kiện -> Đã cài đặt!
+            if is_installed_by_status or is_installed_physically:
+                g["status"] = "Play"  # Đồng bộ trạng thái về Play để giao diện đồng nhất
+                installed.append(g)
+                
+        return installed
+    # =========================================================================
+
     def refresh_sidebar_installed_games(self):
         while self.installed_games_layout.count():
             item = self.installed_games_layout.takeAt(0)
@@ -239,7 +307,7 @@ class MainWindow(QMainWindow):
                     self.nav_buttons.remove(item.widget())
                 item.widget().deleteLater()
                 
-        installed_games = [g for g in self.games_data if g.get("status", "Install") in ["Play", "Update"]]
+        installed_games = self.get_installed_games()
         
         if not installed_games:
             lbl_empty = QLabel("Chưa cài game nào")
@@ -256,7 +324,6 @@ class MainWindow(QMainWindow):
         self.set_active_nav(btn_clicked)
         self.show_game_detail(game_data)
 
-    # --- HÀM XỬ LÝ TRANG LIBRARY ---
     def build_library_page(self):
         self.library_page = QWidget()
         self.library_layout = QVBoxLayout(self.library_page)
@@ -284,7 +351,7 @@ class MainWindow(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
                 
-        installed_games = [g for g in self.games_data if g.get("status", "Install") in ["Play", "Update"]]
+        installed_games = self.get_installed_games()
         
         if not installed_games:
             lbl_empty_lib = QLabel("Bạn chưa tải trò chơi nào.\nHãy sang mục Store để khám phá và cài đặt game")
@@ -298,15 +365,10 @@ class MainWindow(QMainWindow):
                 self.library_grid_layout.addWidget(card)
             self.library_grid_layout.addStretch()
 
-    # --- HÀM XỬ LÝ TRANG CHI TIẾT GAME ---
     def show_game_detail(self, game_data):
-        # Đẩy dữ liệu sang Class GameDetailPage đã tách
         self.detail_page.set_game_data(game_data)
-        
-        # Chuyển tới trang Index 2
         self.content_area.setCurrentIndex(2)
 
-    # --- TÍNH TOÁN DUNG LƯỢNG Ổ ĐĨA ---
     def update_storage_ui(self):
         current_path = get_install_path()
         total_gb, used_gb, free_gb = get_storage_info(current_path)

@@ -1,4 +1,3 @@
-# ui/setting.py
 import os
 import json
 import random
@@ -83,6 +82,9 @@ class SettingsPage(QWidget):
         self.load_fonts()
         self.setup_ui()
         self.update_storage_ui()
+        
+        # [NÂNG CẤP]: Tự động tải dữ liệu tài khoản ngay khi khởi tạo widget
+        self.load_account_data()
 
     def load_fonts(self):
         fonts_dir = os.path.join(BASE_DIR, "assets", "fonts")
@@ -233,24 +235,50 @@ class SettingsPage(QWidget):
         layout.addStretch()
 
     # --- CÁC HÀM XỬ LÝ LOGIC ---
-    
-    def set_current_username(self, username):
-        """Được gọi từ MainWindow để đồng bộ hóa thông tin và quét trạng thái Verify"""
-        self.current_username = username
-        self.lbl_current_user.setText(f"Tên hiển thị: {username}")
-        
-        # Đọc DB để lấy thông tin Email gốc và trạng thái verify chuẩn xác thực
-        if os.path.exists(USERS_DB_PATH):
+
+    def showEvent(self, event):
+        """[NÂNG CẤP]: Mỗi khi chuyển sang tab Setting là tự động làm mới dữ liệu"""
+        super().showEvent(event)
+        self.load_account_data()
+        self.update_storage_ui()
+
+    def load_account_data(self):
+        """[NÂNG CẤP]: Tự đọc session.json và users.json để không bị phụ thuộc luồng bên ngoài"""
+        # Bước 1: Đọc session để biết ai đang đăng nhập
+        if os.path.exists(SESSION_PATH):
+            try:
+                with open(SESSION_PATH, 'r', encoding='utf-8') as f:
+                    session = json.load(f)
+                    self.current_username = session.get("username", "")
+                    self.is_verified = session.get("is_verified", False)
+            except Exception as e:
+                print(f"Lỗi đọc session.json: {e}")
+
+        # Bước 2: Đọc users.json để lấy email và xác nhận lại trạng thái verify
+        if self.current_username and os.path.exists(USERS_DB_PATH):
             try:
                 with open(USERS_DB_PATH, 'r', encoding='utf-8') as f:
                     users = json.load(f)
-                if username in users:
-                    self.user_email = users[username].get("email", "Không có email")
-                    self.is_verified = users[username].get("is_verified", False)
-            except Exception:
-                pass
-        
-        self.refresh_verify_ui()
+                if self.current_username in users:
+                    self.user_email = users[self.current_username].get("email", "Không có email")
+                    self.is_verified = users[self.current_username].get("is_verified", self.is_verified)
+            except Exception as e:
+                print(f"Lỗi đọc users.json: {e}")
+
+        # Bước 3: Cập nhật UI
+        if self.current_username:
+            self.lbl_current_user.setText(f"Tên hiển thị: {self.current_username}")
+            self.refresh_verify_ui()
+        else:
+            self.lbl_current_user.setText("Tên hiển thị: Chưa đăng nhập")
+            self.lbl_verify_status.setText("Trạng thái: Vui lòng đăng nhập lại!")
+            self.lbl_verify_status.setStyleSheet("color: #e74c3c; font-size: 14px; font-weight: bold;")
+            self.btn_verify.setVisible(False)
+
+    def set_current_username(self, username):
+        """Được gọi từ MainWindow để đồng bộ hóa thông tin"""
+        self.current_username = username
+        self.load_account_data()
 
     def refresh_verify_ui(self):
         """Cập nhật giao diện dựa theo trạng thái xác thực thực tế"""
@@ -259,11 +287,13 @@ class SettingsPage(QWidget):
             self.lbl_verify_status.setStyleSheet("color: #2ecc71; font-size: 14px; font-weight: bold;")
             self.btn_verify.setEnabled(False)
             self.btn_verify.setText("Đã xác thực")
+            self.btn_verify.setVisible(True)
         else:
             self.lbl_verify_status.setText("Trạng thái: Chưa xác thực tài khoản!")
             self.lbl_verify_status.setStyleSheet("color: #e74c3c; font-size: 14px; font-weight: bold;")
             self.btn_verify.setEnabled(True)
             self.btn_verify.setText("Get Verified")
+            self.btn_verify.setVisible(True)
 
     def send_verification_otp(self):
         """Bắt đầu kích hoạt luồng gửi mail OTP"""
