@@ -200,8 +200,8 @@ class StorePage(QWidget):
         lbl_info_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #ff4d4d; letter-spacing: 1px; background: transparent;")
         
         lbl_info_content = QLabel(
-            "• Chào mừng bạn đến với Launcher chính thức của Vangrok!\n"
-            "• Lưu ý luôn cập nhật phiên bản mới nhất từ trang chủ để tránh lỗi mismatch client.\n"
+            "• Welcome to offical launcher of Vangrok!\n"
+            "• ⚠Attention: Please always update the lastest to have the best experience!.\n"
         )
         lbl_info_content.setStyleSheet("font-size: 14px; color: #dddddd; line-height: 1.6; background: transparent;")
         lbl_info_content.setWordWrap(True)

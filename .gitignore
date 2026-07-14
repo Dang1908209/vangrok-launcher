@@ -1,5 +1,7 @@
 # Bỏ qua thư mục chứa game đã cài đặt
 installed_games/
+dist/
+build/
 
 # Bỏ qua các file nén tạm thời
 *.zip
@@ -10,4 +12,5 @@ __pycache__/
 *.pyc
 
 token_config.py
-config/client_secret.json
+session.json
+client_secret.json
