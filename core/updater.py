@@ -10,9 +10,12 @@ from PyQt6.QtCore import QThread, pyqtSignal
 # CẤU HÌNH GITHUB (Thay bằng repo của bạn)
 # ==========================================
 # Link raw tới config.json để check version
-GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/<ten-user>/<ten-repo>/main/config/config.json"
-# Link tải nguyên cục code nhánh main dạng ZIP
-GITHUB_ZIP_URL = "https://github.com/<ten-user>/<ten-repo>/archive/refs/heads/main.zip"
+GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/config/config.json"
+
+# [QUAN TRỌNG] Tương lai, khi đóng gói update bằng file EXE, ông cần thay link dưới đây
+# thành link tải file 'update.zip' chứa bản build EXE từ GitHub Releases của ông.
+# (Tạm thời tui vẫn giữ nguyên link tải nhánh main cũ của ông để không báo lỗi)
+GITHUB_ZIP_URL = "https://github.com/Dang1908209/vangrok-launcher/archive/refs/heads/main.zip"
 
 def check_launcher_update():
     """Kiểm tra xem có bản update Launcher mới không"""
@@ -72,16 +75,18 @@ class LauncherUpdaterWorker(QThread):
                 zip_ref.extractall(extract_dir)
             os.remove(temp_zip)
 
-            # Thư mục gốc khi giải nén từ GitHub thường có chữ -main (VD: vangrok-launcher-main)
-            extracted_folders = os.listdir(extract_dir)
-            inner_folder = os.path.join(extract_dir, extracted_folders[0])
+            # [ĐÃ SỬA & NÂNG CẤP CHỐNG CRASH] 
+            # Kiểm tra xem zip giải nén ra 1 thư mục gốc (như github source) hay giải nén ra trực tiếp các file
+            extracted_items = os.listdir(extract_dir)
+            if len(extracted_items) == 1 and os.path.isdir(os.path.join(extract_dir, extracted_items[0])):
+                inner_folder = os.path.join(extract_dir, extracted_items[0])
+            else:
+                inner_folder = extract_dir
 
             # --- 3. Tạo script .bat để chép đè và tự reset ---
-            # Dùng file .bat để Launcher tự tắt đi, chép đè file mới, rồi bật lại. 
-            # Dùng lệnh xcopy nhưng BỎ QUA thư mục installed_games để không xóa mất game của người dùng.
             bat_path = "apply_update.bat"
             bat_content = f"""@echo off
-echo Đang cập nhật Vangrok Launcher... Vui lòng không đóng cửa sổ này.
+echo Dang cap nhat Vangrok Launcher... Vui long khong dong cua so nay.
 timeout /t 2 /nobreak >nul
 
 :: Chép đè toàn bộ file mới vào thư mục hiện tại (Y: Yes, E: Subfolder, Q: Quiet)
@@ -90,8 +95,8 @@ xcopy /Y /E /Q "{inner_folder}\\*" "%cd%\\"
 :: Dọn dẹp thư mục tạm
 rmdir /S /Q "{extract_dir}"
 
-:: Khởi động lại Launcher
-start python main.py
+:: Khởi động lại Launcher bằng file .exe
+start "" "VangrokLauncher.exe"
 
 :: Tự xóa file bat này
 del "%~f0"

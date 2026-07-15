@@ -1,55 +1,19 @@
 [
     {
-        "id": "cursed_apartment",
-        "name": "Cursed Apartment",
+        "id": "test",
+        "name": "Test",
         "version": "1.0.0",
-        "exe_path": "Cursed Apartment.exe",
-        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/cursed_apartment_cover.png",
-        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_cursed_apartment_1_0_0/cursed_apartment.zip",
-        "size": 492.85
-    },
-    {
-        "id": "sticky_cats",
-        "name": "Sticky Cats",
-        "version": "1.0.0",
-        "description": "Game về những chú mèo đấu đá lẫn nhau để giành con cá",
-        "video_url": "https://www.youtube.com/watch?v=ohPWwpeXy3U",
+        "description": "",
+        "video_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_test_1_0_0/dancing.dog.green.screen.mp4",
+        "donate_url": "",
+        "socials": {
+            "facebook": "https://www.facebook.com/tran.bi.641006/",
+            "discord": "",
+            "website": ""
+        },
         "exe_path": "Sticky Cats.exe",
-        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/sticky_cats_cover.png",
-        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_sticky_cats_1_0_0/sticky_cats.zip",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/test_cover.jpg",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_test_1_0_0/test.zip",
         "size": 31.32
-    },
-    {
-        "id": "toad_mountain",
-        "name": "Toad Mountain",
-        "version": "1.0.0",
-        "description": "Một con ếch nhảy nhảy",
-        "video_url": "",
-        "exe_path": "Toad Mountain.exe",
-        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/toad_mountain_cover.png",
-        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_toad_mountain_1_0_0/toad_mountain.zip",
-        "size": 35.1
-    },
-    {
-        "id": "brother_hai's_pho_restaurant",
-        "name": "Brother Hai's Pho Restaurant",
-        "version": "1.0.0",
-        "description": "",
-        "video_url": "",
-        "exe_path": "pho_anh_hai.exe",
-        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/brother_hai's_pho_restaurant_cover.png",
-        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_brother_hai%27s_pho_restaurant_1_0_0/brother_hai.s_pho_restaurant.zip",
-        "size": 1136.78
-    },
-    {
-        "id": "don't_let_it_starve_demo",
-        "name": "Don't Let It Starve DEMO",
-        "version": "1.0.0",
-        "description": "",
-        "video_url": "",
-        "exe_path": "Don't Let It Starve DEMO.exe",
-        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/don't_let_it_starve_demo_cover.png",
-        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_don%27t_let_it_starve_demo_1_0_0/don.t_let_it_starve_demo.zip",
-        "size": 82.81
     }
 ]

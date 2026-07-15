@@ -1,15 +1,52 @@
-# main.py
+#main.py
 import sys
+import os
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 from ui.login import LoginWindow
 from ui.main_window import MainWindow
 # Bổ sung import hàm xử lý kiểm tra đăng nhập tự động
 from core.auth import get_current_session
+# IMPORT HÀM ĐỒNG BỘ VỪA VIẾT
+from core.network import sync_and_fetch_games
+
+# ====================================================================
+# FIX LỖI HIỂN THỊ ICON TỜ GIẤY TRẮNG DƯỚI TASKBAR CỦA WINDOWS
+# ====================================================================
+if sys.platform == "win32":
+    import ctypes
+    # Định danh ID ứng dụng để Windows biết đây là app độc lập
+    myappid = "vangrok.launcher.game.v1.0" 
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except Exception:
+        pass # Bỏ qua nếu Windows quá cũ không hỗ trợ hàm này
 
 def main():
     app = QApplication(sys.argv)
     
+    # Xác định đường dẫn gốc
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # ====================================================================
+    # [MỚI] ĐỒNG BỘ GAME & DỌN DẸP ẢNH RÁC NGAY KHI KHỞI ĐỘNG
+    # ====================================================================
+    print("⏳ Đang đồng bộ dữ liệu với máy chủ Vangrok...")
+    sync_and_fetch_games(base_dir)
+    
+    # ====================================================================
+    # THIẾT LẬP ICON CHO TOÀN BỘ ỨNG DỤNG (TASKBAR & GÓC CỬA SỔ)
+    # ====================================================================
+    icon_path = os.path.join(base_dir, "assets", "logo.ico")
+    
+    # Cố gắng tìm icon ở thư mục gốc, nếu không thấy sẽ tìm trong _internal (khi build)
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+    else:
+        internal_icon_path = os.path.join(base_dir, "_internal", "assets", "logo.ico")
+        if os.path.exists(internal_icon_path):
+            app.setWindowIcon(QIcon(internal_icon_path))
+            
     # 1. Kiểm tra session ngay khi khởi động
     session = get_current_session()
     auto_login = False
@@ -25,7 +62,7 @@ def main():
         current_is_admin = session.get("is_admin", False)
         current_is_verified = session.get("is_verified", False)  # [MỚI] Đọc từ session cũ nếu có
     
-    # Vòng lặp quản lý luồng sống của ứng dụng (Đăng nhập -> Launcher -> Đăng xuất -> Đăng nhập...)
+    # Vòng lặp quản lý luồng sống của ứng dụng
     while True:
         if auto_login:
             # Nếu có session, bỏ qua màn hình Đăng nhập ở lần chạy đầu tiên
@@ -55,12 +92,10 @@ def main():
         # Hiển thị Launcher chính
         main_window.show()
         
-        # Chạy vòng lặp sự kiện cho MainWindow (Code sẽ "dừng" ở đây cho đến khi user tắt/đăng xuất launcher)
+        # Chạy vòng lặp sự kiện cho MainWindow
         app.exec()
         
         # Kiểm tra cờ "logout_requested" từ MainWindow
-        # Nếu người dùng bấm X để tắt app -> logout_requested = False -> Break vòng lặp để thoát hẳn
-        # Nếu bấm Đăng xuất -> logout_requested = True -> Vòng lặp tiếp tục chạy lại hiển thị LoginWindow
         if not getattr(main_window, "logout_requested", False):
             break
 

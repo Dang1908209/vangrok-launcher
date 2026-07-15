@@ -1,6 +1,6 @@
 import os
 import urllib.request
-from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal, QThread
+from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
     QDesktopServices,
@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+
 # ==========================================
 # LUỒNG TẢI ẢNH NGẦM (KHẮC PHỤC TRIỆT ĐỂ LỖI SSL PYQT6)
 # ==========================================
@@ -34,7 +35,11 @@ class ImageDownloader(QThread):
             req = urllib.request.Request(
                 self.url,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                        " AppleWebKit/537.36 (KHTML, like Gecko)"
+                        " Chrome/120.0.0.0 Safari/537.36"
+                    )
                 },
             )
             with urllib.request.urlopen(req, timeout=10) as response:
@@ -50,7 +55,6 @@ class ImageDownloader(QThread):
 # WIDGET HIỆU ỨNG SÁNG LƯỚT QUA (SHIMMER)
 # ==========================================
 class ShimmerLabel(QLabel):
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._shimmer_pos = -0.5
@@ -101,19 +105,29 @@ class ShimmerLabel(QLabel):
 
 
 # ==========================================
-# GIAO DIỆN CHI TIẾT GAME
+# GIAO DIỆN CHI TIẾT GAME (ĐÃ NÂNG CẤP ĐẦY ĐỦ TÍNH NĂNG)
 # ==========================================
 class GameDetailPage(QWidget):
     back_requested = pyqtSignal()
+    # Tín hiệu phát ra khi nhấn nút CHƠI NGAY hoặc CÀI ĐẶT (gửi kèm dữ liệu game và trạng thái)
+    action_requested = pyqtSignal(dict, str)
 
     def __init__(self, base_dir, parent=None):
         super().__init__(parent)
         self.base_dir = base_dir
+        self.current_game_data = {}
+        self.current_status = "Install"
 
         self.media_list = []
         self.current_media_index = 0
         self.current_media_url = ""
-        
+
+        # [MỚI] Biến lưu trữ link Donate & Mạng xã hội của game hiện tại
+        self.current_donate_url = ""
+        self.current_fb_url = ""
+        self.current_discord_url = ""
+        self.current_web_url = ""
+
         # Biến lưu trữ luồng tải ảnh hiện tại
         self.downloader = None
 
@@ -125,10 +139,10 @@ class GameDetailPage(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        # Thiết lập font chung và nền Gradient dọc (Đen - Xám - Đen) cho toàn bộ trang Chi Tiết Game
+        # Thiết lập font chung và nền Gradient dọc (Đen - Xám - Đen)
         self.setStyleSheet("""
             QWidget { 
-                font-family: 'Montenegrin Gothic One', 'Orbitron', sans-serif; 
+                font-family: 'Montenegrin Gothic One', 'Orbitron', 'Segoe UI', sans-serif; 
             }
             
             /* --- NỀN GRADIENT ĐEN - XÁM - ĐEN DỌC --- */
@@ -142,7 +156,7 @@ class GameDetailPage(QWidget):
                 );
             }
             
-            /* Đảm bảo tất cả các nhãn văn bản có nền trong suốt để lộ lớp gradient bên dưới */
+            /* Đảm bảo tất cả các nhãn văn bản có nền trong suốt */
             QLabel {
                 background: transparent;
             }
@@ -152,7 +166,7 @@ class GameDetailPage(QWidget):
         layout.setContentsMargins(30, 20, 30, 20)
         layout.setSpacing(20)
 
-        # --- NÚT QUAY LẠI (Đã mở rộng lên 220px để không bị cắt chữ) ---
+        # --- NÚT QUAY LẠI ---
         self.btn_back = QPushButton("⬅ QUAY LẠI CỬA HÀNG")
         self.btn_back.setStyleSheet("""
             QPushButton {
@@ -173,7 +187,7 @@ class GameDetailPage(QWidget):
         media_container = QVBoxLayout()
         media_container.setSpacing(8)
 
-        # 1. PHÓNG TO ẢNH GAME LÊN 480x270 (CHẨN 16:9)
+        # 1. PHÓNG TO ẢNH GAME LÊN 480x270 (CHUẨN 16:9)
         self.media_stack = QStackedWidget()
         self.media_stack.setFixedSize(480, 270)
 
@@ -198,7 +212,7 @@ class GameDetailPage(QWidget):
         )
         lbl_video_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.btn_play_video = QPushButton("▶ Xem Trên Trình Duyệt")
+        self.btn_play_video = QPushButton("▶ Xem Trailer (MP4 / YouTube)")
         self.btn_play_video.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_play_video.setStyleSheet("""
             QPushButton {
@@ -243,7 +257,7 @@ class GameDetailPage(QWidget):
         media_container.addLayout(nav_layout)
         header_layout.addLayout(media_container)
 
-        # --- CỘT BÊN PHẢI (TÊN GAME -> LINE ĐỎ -> NÚT INSTALL) ---
+        # --- CỘT BÊN PHẢI (TÊN GAME -> LINE ĐỎ -> NÚT ACTION -> DONATE & SOCIALS) ---
         info_layout = QVBoxLayout()
         info_layout.setSpacing(12)
 
@@ -254,7 +268,7 @@ class GameDetailPage(QWidget):
         self.detail_title.setWordWrap(True)
         info_layout.addWidget(self.detail_title)
 
-        # 2. ĐƯỜNG LINE ĐỎ MẢNH NGĂN CÁCH TÊN GAME VÀ NÚT INSTALL
+        # 2. ĐƯỜNG LINE ĐỎ MẢNH NGĂN CÁCH TÊN GAME
         self.red_separator = QFrame()
         self.red_separator.setFixedHeight(2)
         self.red_separator.setStyleSheet("background-color: #ff4d4d; border: none;")
@@ -262,16 +276,67 @@ class GameDetailPage(QWidget):
 
         info_layout.addStretch()
 
+        # NÚT ACTION (CÀI ĐẶT / CHƠI NGAY)
         self.detail_btn_action = QPushButton("Install")
-        self.detail_btn_action.setFixedSize(200, 50) # Làm nút to ra xíu cho cân với ảnh lớn
+        self.detail_btn_action.setFixedHeight(50)
         self.detail_btn_action.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.detail_btn_action.clicked.connect(self.on_action_clicked)
         info_layout.addWidget(self.detail_btn_action)
+
+        # =========================================================================
+        # [MỚI] KHU VỰC NÚT DONATE VÀ MẠNG XÃ HỘI (FACEBOOK, DISCORD, WEB)
+        # =========================================================================
+        self.btn_donate = QPushButton("💖 ỦNG HỘ NHÀ PHÁT TRIỂN")
+        self.btn_donate.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_donate.setFixedHeight(40)
+        self.btn_donate.setStyleSheet("""
+            QPushButton {
+                background-color: #e84393; color: white; font-weight: bold; 
+                font-size: 14px; border-radius: 5px; border: 1px solid #fd79a8;
+            }
+            QPushButton:hover { background-color: #fd79a8; }
+        """)
+        self.btn_donate.clicked.connect(lambda: self.open_external_link(self.current_donate_url))
+        info_layout.addWidget(self.btn_donate)
+
+        # Hàng nút mạng xã hội (Nằm ngang)
+        self.socials_layout = QHBoxLayout()
+        self.socials_layout.setSpacing(8)
+
+        social_style = """
+            QPushButton {
+                background-color: #2d3436; color: #dfe6e9; font-weight: bold; 
+                font-size: 12px; padding: 8px 5px; border-radius: 4px; border: 1px solid #636e72;
+            }
+            QPushButton:hover { background-color: #636e72; color: white; border-color: #ff4d4d; }
+        """
+
+        self.btn_fb = QPushButton("📘 Facebook")
+        self.btn_fb.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_fb.setStyleSheet(social_style)
+        self.btn_fb.clicked.connect(lambda: self.open_external_link(self.current_fb_url))
+
+        self.btn_discord = QPushButton("🎮 Discord")
+        self.btn_discord.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_discord.setStyleSheet(social_style)
+        self.btn_discord.clicked.connect(lambda: self.open_external_link(self.current_discord_url))
+
+        self.btn_web = QPushButton("🌐 Website")
+        self.btn_web.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_web.setStyleSheet(social_style)
+        self.btn_web.clicked.connect(lambda: self.open_external_link(self.current_web_url))
+
+        self.socials_layout.addWidget(self.btn_fb)
+        self.socials_layout.addWidget(self.btn_discord)
+        self.socials_layout.addWidget(self.btn_web)
+
+        info_layout.addLayout(self.socials_layout)
+        # =========================================================================
 
         header_layout.addLayout(info_layout, stretch=1)
         layout.addLayout(header_layout)
 
-        # ================= KHU VỰC MÔ TẢ (ĐƯỢC GOM VÀO KHUNG BOX) =================
-        # 3. TAO KHUNG MÔ TẢ RIÊNG BIỆT (BOX FRAME)
+        # ================= KHU VỰC MÔ TẢ (BOX FRAME) =================
         self.desc_frame = QFrame()
         self.desc_frame.setStyleSheet("""
             QFrame#DescBox {
@@ -281,7 +346,7 @@ class GameDetailPage(QWidget):
             }
         """)
         self.desc_frame.setObjectName("DescBox")
-        
+
         desc_layout = QVBoxLayout(self.desc_frame)
         desc_layout.setContentsMargins(20, 20, 20, 20)
         desc_layout.setSpacing(12)
@@ -305,26 +370,60 @@ class GameDetailPage(QWidget):
         layout.addWidget(self.desc_frame, stretch=1)
 
     def set_game_data(self, game_data):
+        """Hàm nhận dữ liệu game và tự động kiểm tra trạng thái cài đặt thực tế"""
+        self.current_game_data = game_data
         self.detail_title.setText(game_data.get("name", "Unknown Game"))
 
-        status_text = game_data.get("status", "Install")
-        self.detail_btn_action.setText(status_text)
-        if status_text == "Play":
-            self.detail_btn_action.setStyleSheet(
-                "background-color: #27ae60; color: white; font-size: 18px; font-weight: bold; border-radius: 5px; border: none;"
-            )
-        elif status_text == "Update":
-            self.detail_btn_action.setStyleSheet(
-                "background-color: #f39c12; color: white; font-size: 18px; font-weight: bold; border-radius: 5px; border: none;"
-            )
-        else:
-            self.detail_btn_action.setStyleSheet(
-                "background-color: #ff4d4d; color: white; font-size: 18px; font-weight: bold; border-radius: 5px; border: none;"
-            )
+        # =========================================================================
+        # KIỂM TRA TRỰC TIẾP TRÊN Ổ CỨNG XEM GAME ĐÃ CÀI CHƯA
+        # =========================================================================
+        game_id = game_data.get("id")
+        exe_path = game_data.get("exe_path")
 
-        default_desc = "Trò chơi này hiện chưa có bài viết mô tả chi tiết từ quản trị viên Vangrok.\nHãy nhấn nút bên trên để cài đặt và trải nghiệm cùng bạn bè ngay!"
+        if game_id and exe_path:
+            full_exe_path = os.path.join(
+                self.base_dir, "installed_games", str(game_id), str(exe_path)
+            )
+            # Nếu file .exe thực sự tồn tại trong ổ đĩa -> Đổi trạng thái thành Play
+            if os.path.exists(full_exe_path):
+                self.current_status = "Play"
+            else:
+                self.current_status = game_data.get("status", "Install")
+        else:
+            self.current_status = game_data.get("status", "Install")
+
+        # Cập nhật nút bấm Action theo đúng trạng thái vừa quét được
+        self.update_action_button_ui()
+
+        # =========================================================================
+        # [MỚI] CẬP NHẬT TRẠNG THÁI ẨN/HIỆN CHO NÚT DONATE & MẠNG XÃ HỘI
+        # =========================================================================
+        self.current_donate_url = game_data.get("donate_url", "").strip()
+        self.btn_donate.setVisible(bool(self.current_donate_url))
+
+        socials = game_data.get("socials", {})
+        if not isinstance(socials, dict):
+            socials = {}
+
+        self.current_fb_url = socials.get("facebook", "").strip()
+        self.btn_fb.setVisible(bool(self.current_fb_url))
+
+        self.current_discord_url = socials.get("discord", "").strip()
+        self.btn_discord.setVisible(bool(self.current_discord_url))
+
+        self.current_web_url = socials.get("website", "").strip()
+        self.btn_web.setVisible(bool(self.current_web_url))
+        # =========================================================================
+
+        # Hiển thị mô tả
+        default_desc = (
+            "Trò chơi này hiện chưa có bài viết mô tả chi tiết từ quản trị"
+            " viên Vangrok.\nHãy nhấn nút bên trên để cài đặt và trải"
+            " nghiệm cùng bạn bè ngay!"
+        )
         self.detail_desc.setText(game_data.get("description", default_desc))
 
+        # Tải danh sách hình ảnh & video
         self.media_list.clear()
         covers = game_data.get("cover", [])
         if isinstance(covers, str) and covers.strip():
@@ -339,6 +438,46 @@ class GameDetailPage(QWidget):
         self.current_media_index = 0
         self.update_media_viewer()
 
+    def update_action_button_ui(self):
+        """Cập nhật Giao diện (Màu sắc, chữ) của nút Action dựa theo self.current_status"""
+        if self.current_status == "Play":
+            self.detail_btn_action.setText("CHƠI NGAY")
+            self.detail_btn_action.setStyleSheet("""
+                QPushButton {
+                    background-color: #27ae60; color: white; 
+                    font-size: 18px; font-weight: bold; border-radius: 5px; border: none;
+                }
+                QPushButton:hover { background-color: #2ecc71; }
+            """)
+        elif self.current_status == "Update":
+            self.detail_btn_action.setText("CẬP NHẬT")
+            self.detail_btn_action.setStyleSheet("""
+                QPushButton {
+                    background-color: #f39c12; color: white; 
+                    font-size: 18px; font-weight: bold; border-radius: 5px; border: none;
+                }
+                QPushButton:hover { background-color: #f1c40f; }
+            """)
+        else:
+            self.current_status = "Install"
+            self.detail_btn_action.setText("CÀI ĐẶT")
+            self.detail_btn_action.setStyleSheet("""
+                QPushButton {
+                    background-color: #ff4d4d; color: white; 
+                    font-size: 18px; font-weight: bold; border-radius: 5px; border: none;
+                }
+                QPushButton:hover { background-color: #ff6666; }
+            """)
+
+    def on_action_clicked(self):
+        """Khi bấm nút CÀI ĐẶT hoặc CHƠI NGAY trong trang chi tiết"""
+        self.action_requested.emit(self.current_game_data, self.current_status)
+
+    # [MỚI] Hàm mở link bên ngoài (Donate, FB, Discord...)
+    def open_external_link(self, url):
+        if url and isinstance(url, str) and url.strip():
+            QDesktopServices.openUrl(QUrl(url.strip()))
+
     def update_media_viewer(self):
         if not self.media_list:
             self.media_stack.setCurrentIndex(0)
@@ -352,10 +491,11 @@ class GameDetailPage(QWidget):
         )
         self.current_media_url = self.media_list[self.current_media_index]
 
+        # [CẬP NHẬT] Nhận diện cả file MP4 tải về từ GitHub Release lẫn YouTube
         is_video = (
-            self.current_media_url.endswith((".mp4", ".webm", ".avi", ".mkv"))
-            or "youtube.com" in self.current_media_url
-            or "youtu.be" in self.current_media_url
+            self.current_media_url.lower().endswith((".mp4", ".webm", ".avi", ".mkv"))
+            or "youtube.com" in self.current_media_url.lower()
+            or "youtu.be" in self.current_media_url.lower()
         )
 
         if is_video:
@@ -364,7 +504,6 @@ class GameDetailPage(QWidget):
             self.media_stack.setCurrentIndex(0)
             self.load_image_async(self.current_media_url)
 
-    # --- HÀM TẢI ẢNH ĐÃ ĐƯỢC THAY THẾ BẰNG QTHREAD ---
     def load_image_async(self, url):
         self.lbl_thumbnail.start_shimmer()
 
@@ -384,9 +523,7 @@ class GameDetailPage(QWidget):
         self.downloader.data_downloaded.connect(self.on_image_downloaded)
         self.downloader.start()
 
-    # --- NHẬN DỮ LIỆU TỪ LUỒNG TẢI ẢNH ---
     def on_image_downloaded(self, data, url):
-        # Kiểm tra: Nếu người dùng bấm lướt nhanh sang ảnh khác, bỏ qua kết quả của ảnh cũ
         if url != self.current_media_url:
             return
 

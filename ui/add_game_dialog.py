@@ -3,10 +3,11 @@ import sys
 import json
 import shutil
 import subprocess
-import traceback  # MỚI THÊM: Để truy xuất chi tiết lỗi
+import traceback  # Để truy xuất chi tiết lỗi
 from github import Github
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, 
-                             QLabel, QFileDialog, QMessageBox, QProgressBar, QFrame, QTextEdit)
+                             QLabel, QFileDialog, QMessageBox, QProgressBar, QFrame, 
+                             QTextEdit, QScrollArea, QWidget)
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QPixmap
 
@@ -24,27 +25,28 @@ try:
 except ImportError:
     GITHUB_TOKEN = ""
 
-# Đặt tạm biến REPO_NAME nếu bạn chưa khai báo ở file khác
 # Thay "Username/RepoName" bằng của bạn
 REPO_NAME = "Dang1908209/vangrok-launcher" 
 
 # ==========================================
-# 1. THREAD XỬ LÝ NGẦM
+# 1. THREAD XỬ LÝ NGẦM (ĐÃ CẬP NHẬT)
 # ==========================================
 class UploadGameWorker(QThread):
     progress_signal = pyqtSignal(str, int)
     finished_signal = pyqtSignal(bool, str)
-    log_signal = pyqtSignal(str)  # MỚI THÊM: Bắn log ra Console
+    log_signal = pyqtSignal(str) 
 
-    def __init__(self, game_name, game_version, game_folder, exe_name, cover_path, video_url, description):
+    def __init__(self, game_name, game_version, game_folder, exe_name, cover_path, video_input, description, donate_url, socials):
         super().__init__()
         self.game_name = game_name
         self.game_version = game_version
         self.game_folder = game_folder
         self.exe_name = exe_name
         self.cover_path = cover_path
-        self.video_url = video_url          # Thêm biến lưu Video
-        self.description = description      # Thêm biến lưu Mô tả
+        self.video_input = video_input      # [CẬP NHẬT] Có thể là Link YouTube hoặc đường dẫn file .mp4
+        self.description = description
+        self.donate_url = donate_url        # [MỚI] Link donate
+        self.socials = socials              # [MỚI] Dictionary chứa link MXH
 
     def run(self):
         try:
@@ -53,13 +55,13 @@ class UploadGameWorker(QThread):
             zip_output_path = os.path.join(os.path.dirname(self.game_folder), safe_name)
             final_zip_path = f"{zip_output_path}.zip"
 
-            self.log_signal.emit(f"[1/5] Đang nén thư mục: {self.game_folder}")
+            self.log_signal.emit(f"[1/6] Đang nén thư mục: {self.game_folder}")
             self.progress_signal.emit(f"Đang nén game {self.game_name}...", 10)
             shutil.make_archive(zip_output_path, 'zip', self.game_folder)
             self.log_signal.emit(f"-> Nén thành công: {final_zip_path}")
 
-            self.log_signal.emit(f"[2/5] Đang kết nối GitHub (Repo: {REPO_NAME})...")
-            self.progress_signal.emit("Đang upload file Game lên GitHub Releases...", 40)
+            self.log_signal.emit(f"[2/6] Đang kết nối GitHub (Repo: {REPO_NAME})...")
+            self.progress_signal.emit("Đang upload file Game lên GitHub Releases...", 30)
             g = Github(GITHUB_TOKEN)
             repo = g.get_repo(REPO_NAME)
             
@@ -76,9 +78,23 @@ class UploadGameWorker(QThread):
             download_url = asset.browser_download_url
             self.log_signal.emit(f"-> Upload ZIP thành công! URL: {download_url}")
 
+            # ==========================================================
+            # [MỚI] XỬ LÝ VIDEO TRAILER (NẾU LÀ FILE MP4 TRONG MÁY THÌ UPLOAD LÊN RELEASE)
+            # ==========================================================
+            final_video_url = self.video_input
+            if self.video_input and os.path.exists(self.video_input) and self.video_input.lower().endswith('.mp4'):
+                self.log_signal.emit(f"[3/6] Phát hiện file MP4 cục bộ! Đang upload video lên Release...")
+                self.progress_signal.emit("Đang upload Video Trailer lên Release...", 50)
+                video_asset = release.upload_asset(self.video_input)
+                final_video_url = video_asset.browser_download_url
+                self.log_signal.emit(f"-> Upload Video MP4 thành công! URL: {final_video_url}")
+            else:
+                self.log_signal.emit(f"[3/6] Sử dụng link Video web: {final_video_url if final_video_url else 'Không có'}")
+
+            # Xử lý ảnh bìa
             cover_url = ""
             if self.cover_path and os.path.exists(self.cover_path):
-                self.log_signal.emit(f"[3/5] Đang xử lý ảnh bìa...")
+                self.log_signal.emit(f"[4/6] Đang xử lý ảnh bìa...")
                 cover_ext = os.path.splitext(self.cover_path)[1]
                 cover_filename = f"{safe_name}_cover{cover_ext}"
                 os.makedirs("assets/covers", exist_ok=True)
@@ -87,7 +103,7 @@ class UploadGameWorker(QThread):
                 cover_url = f"https://raw.githubusercontent.com/{REPO_NAME}/main/assets/covers/{cover_filename}"
                 self.log_signal.emit(f"-> Lưu ảnh bìa thành: {local_cover_path}")
 
-            self.log_signal.emit(f"[4/5] Đang cập nhật database (games.json)...")
+            self.log_signal.emit(f"[5/6] Đang cập nhật database (games.json)...")
             self.progress_signal.emit("Đang cập nhật database (games.json)...", 80)
             json_file = "config/games.json"
             games_data = []
@@ -95,14 +111,18 @@ class UploadGameWorker(QThread):
                 with open(json_file, "r", encoding="utf-8") as f:
                     games_data = json.load(f)
 
+            # Xóa data cũ nếu trùng ID
             games_data = [g for g in games_data if g.get("id") != safe_name]
 
+            # [CẬP NHẬT] Thêm cấu trúc JSON mới cho Donate và Socials
             new_game = {
                 "id": safe_name,
                 "name": self.game_name,
                 "version": self.game_version, 
-                "description": self.description,   # Lưu vào JSON
-                "video_url": self.video_url,       # Lưu vào JSON
+                "description": self.description,
+                "video_url": final_video_url,      # Lưu link Video (YouTube hoặc link MP4 trên Github Release)
+                "donate_url": self.donate_url,     # [MỚI] Link donate cho Dev
+                "socials": self.socials,           # [MỚI] Mạng xã hội của Dev (dict)
                 "exe_path": self.exe_name,
                 "cover": cover_url,
                 "download_url": download_url,
@@ -117,7 +137,7 @@ class UploadGameWorker(QThread):
             self.log_signal.emit("-> Dọn dẹp file ZIP tạm...")
             os.remove(final_zip_path)
 
-            self.log_signal.emit(f"[5/5] Đang đồng bộ Source Code lên GitHub...")
+            self.log_signal.emit(f"[6/6] Đang đồng bộ Source Code lên GitHub...")
             self.progress_signal.emit("Đang đồng bộ Code lên GitHub...", 90)
             
             auth_url = f"https://{GITHUB_TOKEN}@github.com/{REPO_NAME}.git"
@@ -147,15 +167,16 @@ class UploadGameWorker(QThread):
 
 
 # ==========================================
-# 2. DIALOG NHẬP THÔNG TIN (GIAO DIỆN MỚI)
+# 2. DIALOG NHẬP THÔNG TIN (ĐÃ CẬP NHẬT UI)
 # ==========================================
 class AddGameDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Admin: Thêm Game Mới")
-        self.resize(950, 600)  # Nới rộng cửa sổ để chứa khung Mô tả
+        self.resize(1050, 680)  # Tăng kích thước cửa sổ để thoải mái hơn
         self.folder_path = ""
         self.cover_path = ""
+        self.video_path = ""
         
         self.setup_ui()
         self.apply_stylesheet()
@@ -165,11 +186,11 @@ class AddGameDialog(QDialog):
         master_layout.setContentsMargins(20, 20, 20, 20)
         master_layout.setSpacing(20)
 
-        # ================== CỘT TRÁI (FORM) ==================
+        # ================== CỘT TRÁI (FORM CÓ THANH CUỘN) ==================
         left_widget = QFrame()
         main_layout = QVBoxLayout(left_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(15)
+        main_layout.setSpacing(10)
 
         lbl_title = QLabel("THÊM TRÒ CHƠI MỚI")
         lbl_title.setObjectName("title")
@@ -177,7 +198,7 @@ class AddGameDialog(QDialog):
         main_layout.addWidget(lbl_title)
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(20)
+        content_layout.setSpacing(15)
 
         # --- Hình ảnh ---
         left_layout = QVBoxLayout()
@@ -195,10 +216,18 @@ class AddGameDialog(QDialog):
         left_layout.addStretch()
         content_layout.addLayout(left_layout)
 
-        # --- Input ---
-        right_layout = QVBoxLayout()
-        right_layout.setSpacing(8)
+        # --- Input (Đưa vào ScrollArea để không bị tràn màn hình) ---
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setStyleSheet("background: transparent;")
+        
+        scroll_content = QWidget()
+        right_layout = QVBoxLayout(scroll_content)
+        right_layout.setContentsMargins(0, 0, 5, 0)
+        right_layout.setSpacing(6)
 
+        # Các input cơ bản
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Tên Game (VD: Vangrok RPG)")
         
@@ -208,15 +237,37 @@ class AddGameDialog(QDialog):
         self.exe_input = QLineEdit()
         self.exe_input.setPlaceholderText("File khởi chạy (VD: game.exe)")
         
+        # [MỚI] Khung chọn Video (Link web hoặc file MP4)
+        video_layout = QHBoxLayout()
         self.video_input = QLineEdit()
-        self.video_input.setPlaceholderText("Không bắt buộc (VD: Link YouTube / .mp4)")
+        self.video_input.setPlaceholderText("Link YouTube / MP4 (Hoặc bấm chọn file ->)")
+        self.btn_select_video = QPushButton("📁 MP4")
+        self.btn_select_video.setObjectName("btn_secondary")
+        self.btn_select_video.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_select_video.clicked.connect(self.select_video)
+        video_layout.addWidget(self.video_input)
+        video_layout.addWidget(self.btn_select_video)
 
         self.desc_input = QTextEdit()
         self.desc_input.setObjectName("desc_input")
         self.desc_input.setPlaceholderText("Nhập mô tả về game (Không bắt buộc)...")
-        self.desc_input.setMaximumHeight(70) # Hạn chế chiều cao khung mô tả
+        self.desc_input.setMaximumHeight(60)
         
-        # Thêm các Label và Input vào cột phải
+        # [MỚI] Các input cho Donate & Mạng xã hội
+        self.donate_input = QLineEdit()
+        self.donate_input.setPlaceholderText("Link Donate (Momo, Paypal, Ko-fi...)")
+        
+        self.fb_input = QLineEdit()
+        self.fb_input.setPlaceholderText("Link Facebook / Fanpage")
+        
+        self.discord_input = QLineEdit()
+        self.discord_input.setPlaceholderText("Link Discord Server")
+        
+        self.web_input = QLineEdit()
+        self.web_input.setPlaceholderText("Link Website / Trang chủ Game")
+
+        # Layout thêm vào right_layout
+        right_layout.addWidget(QLabel("<b>1. Thông tin trò chơi:</b>"))
         right_layout.addWidget(QLabel("Tên trò chơi (*):"))
         right_layout.addWidget(self.name_input)
         
@@ -226,12 +277,26 @@ class AddGameDialog(QDialog):
         right_layout.addWidget(QLabel("File thực thi (*):"))
         right_layout.addWidget(self.exe_input)
         
-        right_layout.addWidget(QLabel("Link Video Trailer:"))
-        right_layout.addWidget(self.video_input)
+        right_layout.addWidget(QLabel("Video Trailer (Link Web hoặc chọn file .mp4):"))
+        right_layout.addLayout(video_layout)
 
         right_layout.addWidget(QLabel("Mô tả Game:"))
         right_layout.addWidget(self.desc_input)
         
+        right_layout.addSpacing(10)
+        right_layout.addWidget(QLabel("<b>2. Thông tin Nhà phát triển (Donate & MXH):</b>"))
+        right_layout.addWidget(QLabel("Link Donate / Ủng hộ:"))
+        right_layout.addWidget(self.donate_input)
+        right_layout.addWidget(QLabel("Facebook / Fanpage:"))
+        right_layout.addWidget(self.fb_input)
+        right_layout.addWidget(QLabel("Discord Server:"))
+        right_layout.addWidget(self.discord_input)
+        right_layout.addWidget(QLabel("Website / Blog:"))
+        right_layout.addWidget(self.web_input)
+
+        # Khung chọn folder game
+        right_layout.addSpacing(10)
+        right_layout.addWidget(QLabel("<b>3. Dữ liệu bản cài đặt:</b>"))
         self.folder_frame = QFrame()
         self.folder_frame.setObjectName("folder_frame")
         folder_layout = QVBoxLayout(self.folder_frame)
@@ -252,9 +317,11 @@ class AddGameDialog(QDialog):
         right_layout.addWidget(self.folder_frame)
         right_layout.addStretch()
         
-        content_layout.addLayout(right_layout)
+        scroll_area.setWidget(scroll_content)
+        content_layout.addWidget(scroll_area)
         main_layout.addLayout(content_layout)
 
+        # Status & ProgressBar & Start Button
         self.lbl_status = QLabel("Trạng thái: Sẵn sàng")
         self.lbl_status.setStyleSheet("color: #cccccc; font-weight: bold;")
         main_layout.addWidget(self.lbl_status)
@@ -271,7 +338,6 @@ class AddGameDialog(QDialog):
         main_layout.addWidget(self.btn_start)
 
         master_layout.addWidget(left_widget, stretch=5)
-
 
         # ================== CỘT PHẢI (CONSOLE) ==================
         right_widget = QFrame()
@@ -290,7 +356,6 @@ class AddGameDialog(QDialog):
         console_layout.addWidget(self.console_output)
 
         master_layout.addWidget(right_widget, stretch=4)
-
 
     def apply_stylesheet(self):
         self.setStyleSheet("""
@@ -318,7 +383,7 @@ class AddGameDialog(QDialog):
                 background-color: #1e1e1e;
                 color: white;
                 border: 1px solid #444444;
-                padding: 10px;
+                padding: 8px;
                 border-radius: 4px;
                 font-size: 13px;
             }
@@ -341,7 +406,7 @@ class AddGameDialog(QDialog):
                 background-color: #3c3c3c;
                 color: white;
                 border: none;
-                padding: 10px;
+                padding: 8px 12px;
                 border-radius: 4px;
                 font-weight: bold;
             }
@@ -359,7 +424,7 @@ class AddGameDialog(QDialog):
                 color: white;
                 font-size: 14px;
                 padding: 12px;
-                margin-top: 10px;
+                margin-top: 5px;
             }
             QPushButton#btn_start:hover {
                 background-color: #218838;
@@ -391,6 +456,18 @@ class AddGameDialog(QDialog):
                 border: 1px solid #444444;
                 border-radius: 6px;
                 padding: 8px;
+            }
+            QScrollArea QScrollBar:vertical {
+                background: #1e1e1e;
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollArea QScrollBar::handle:vertical {
+                background: #555555;
+                border-radius: 4px;
+            }
+            QScrollArea QScrollBar::handle:vertical:hover {
+                background: #e53935;
             }
         """)
 
@@ -431,18 +508,31 @@ class AddGameDialog(QDialog):
             ))
             self.img_preview.setStyleSheet("border: 1px solid #555;")
 
+    # [MỚI] Hàm cho phép duyệt tìm file video .mp4 từ máy tính
+    def select_video(self):
+        file, _ = QFileDialog.getOpenFileName(self, "Chọn video trailer MP4", "", "Video Files (*.mp4)")
+        if file:
+            self.video_path = file
+            self.video_input.setText(file)  # Hiển thị đường dẫn file vào ô input
+
     def start_process(self):
         game_name = self.name_input.text().strip()
         exe_name = self.exe_input.text().strip()
         game_ver = self.ver_input.text().strip()
-        video_url = self.video_input.text().strip()
+        video_input = self.video_input.text().strip()
         description = self.desc_input.toPlainText().strip()
 
-        # Nếu không nhập version thì mặc định là "1.0.0"
+        # [MỚI] Lấy dữ liệu Donate và Socials
+        donate_url = self.donate_input.text().strip()
+        socials = {
+            "facebook": self.fb_input.text().strip(),
+            "discord": self.discord_input.text().strip(),
+            "website": self.web_input.text().strip()
+        }
+
         if not game_ver:
             game_ver = "1.0.0"
 
-        # Bỏ đi điều kiện bắt buộc nhập version
         if not game_name or not exe_name or not self.folder_path:
             QMessageBox.warning(self, "Thiếu thông tin", "Vui lòng nhập các thông tin bắt buộc (*): Tên Game, File chạy và chọn Folder!")
             return
@@ -456,8 +546,10 @@ class AddGameDialog(QDialog):
             self.folder_path, 
             exe_name, 
             self.cover_path,
-            video_url,      # Truyền biến video
-            description     # Truyền biến mô tả
+            video_input,    # Truyền video (link web hoặc đường dẫn mp4)
+            description,
+            donate_url,     # Truyền link donate
+            socials         # Truyền dictionary mạng xã hội
         )
         self.worker.progress_signal.connect(self.update_progress)
         self.worker.log_signal.connect(self.append_log) 
