@@ -239,6 +239,7 @@ class StorePage(QWidget):
 
     def filter_games(self, query):
         """Hàm lọc và hiển thị lại các GameCard dựa trên từ khóa."""
+        print(f"[DEBUG Store] Tổng số game trong data hiện tại: {len(self.games_data)}")
         while self.cards_layout.count():
             item = self.cards_layout.takeAt(0)
             if item.widget():
@@ -267,3 +268,9 @@ class StorePage(QWidget):
         Tránh lỗi crash app (AttributeError) nếu MainWindow vẫn gọi cập nhật ổ đĩa.
         """
         pass
+
+    def update_games_data(self, new_games_data):
+        """Hàm cập nhật danh sách game mới từ MainWindow và vẽ lại giao diện"""
+        self.games_data = new_games_data
+        self.filter_games(self.search_bar.text())
+        print("[DEBUG Store] Đã cập nhật giao diện Store với dữ liệu mới!")

@@ -13,7 +13,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 
 
 # ==========================================
-# 1. HỘP THOẠI DONATE & THÔNG TIN (MỚI)
+# 1. HỘP THOẠI DONATE & THÔNG TIN
 # ==========================================
 class DonateDialog(QDialog):
     def __init__(self, game_data, cover_path, parent=None):
@@ -126,7 +126,7 @@ class DonateDialog(QDialog):
                 background-color: #ff5252;
             }
             QPushButton#btn_social {
-                background-color: #3b5998; /* Màu cơ bản, có thể chỉnh sau */
+                background-color: #3b5998; 
                 color: white;
                 padding: 6px;
                 border-radius: 4px;
@@ -152,7 +152,7 @@ class DonateDialog(QDialog):
 
 
 # ==========================================
-# 2. THẺ GAME CHÍNH (ĐÃ CẬP NHẬT LUỒNG)
+# 2. THẺ GAME CHÍNH (ĐÃ PHÓNG TO x1.5 & THÊM TÊN DEV)
 # ==========================================
 class GameCard(QFrame):
     # Tạo signal gửi toàn bộ dữ liệu của game (dict) lên MainWindow khi nhấp chuột
@@ -168,9 +168,10 @@ class GameCard(QFrame):
         self.game_dir = os.path.join(BASE_DIR, "installed_games", str(self.game_id))
         self.full_exe_path = os.path.join(self.game_dir, str(self.exe_path))
         
-        self.setFixedSize(180, 260) # Tăng kích thước thẻ để chứa đẹp ảnh thumbnail
+        # Phóng to thẻ game gấp 1.5 lần (180x260 -> 270x390)
+        self.setFixedSize(270, 390) 
         self.setObjectName("game_card")
-        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) # Con trỏ biến thành bàn tay
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) 
         
         self.downloader = None
         self.status = "Install" # Trạng thái mặc định
@@ -185,47 +186,70 @@ class GameCard(QFrame):
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(15, 15, 15, 15) # Tăng lề cho cân đối với size lớn
+        layout.setSpacing(12)
         
-        # 1. KHU VỰC THUMBNAIL
+        # 1. KHU VỰC THUMBNAIL (Phóng to tương ứng)
         self.lbl_thumb = QLabel()
-        self.lbl_thumb.setFixedHeight(130)
+        self.lbl_thumb.setFixedHeight(195) # 130 * 1.5 = 195
         self.lbl_thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_thumb.setStyleSheet("background-color: #1a1a1a; border-radius: 5px;")
+        self.lbl_thumb.setStyleSheet("background-color: #1a1a1a; border-radius: 8px;")
         
         if self.cover_filename and os.path.exists(self.thumb_path) and os.path.isfile(self.thumb_path):
             pixmap = QPixmap(self.thumb_path)
             self.lbl_thumb.setPixmap(
-                pixmap.scaled(160, 130, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+                # Cân đối lại khung hình scale
+                pixmap.scaled(240, 195, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
             )
         else:
             self.lbl_thumb.setText("NO IMAGE")
-            self.lbl_thumb.setStyleSheet("background-color: #1a1a1a; color: #666666; font-weight: bold; border-radius: 5px;")
+            self.lbl_thumb.setStyleSheet("background-color: #1a1a1a; color: #666666; font-weight: bold; border-radius: 8px; font-size: 16px;")
             
         layout.addWidget(self.lbl_thumb)
         
-        # 2. TIÊU ĐỀ GAME
+        # 2. TIÊU ĐỀ GAME (Tăng cỡ chữ)
         lbl_title = QLabel(self.game_data.get("name", "Unknown Game"))
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_title.setStyleSheet("font-size: 14px; font-weight: bold; color: white;")
+        lbl_title.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
         lbl_title.setWordWrap(True)
         layout.addWidget(lbl_title, alignment=Qt.AlignmentFlag.AlignTop)
         
         layout.addStretch()
         
-        # 3. KÍCH THƯỚC FILE
+        # 3. KHU VỰC THÔNG TIN (DEV & DUNG LƯỢNG)
+        info_layout = QHBoxLayout()
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Ô nhỏ chứa tên Dev ở góc trái
+        dev_name = self.game_data.get("developer", "Unknown Dev")
+        self.lbl_dev = QLabel(f" {dev_name} ")
+        self.lbl_dev.setStyleSheet("""
+            background-color: #3b3b3b; 
+            color: #e0e0e0; 
+            font-size: 12px; 
+            font-weight: bold; 
+            border-radius: 4px; 
+            padding: 3px 6px;
+        """)
+        info_layout.addWidget(self.lbl_dev, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        
+        info_layout.addStretch() # Dồn dung lượng sang sát phải
+        
+        # Kích thước file ở góc phải (Tăng cỡ chữ nhẹ)
         size_str = self.get_display_size()
         self.lbl_size = QLabel(size_str)
-        self.lbl_size.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_size.setStyleSheet("font-size: 11px; color: #aaaaaa; font-weight: bold;")
-        layout.addWidget(self.lbl_size)
+        self.lbl_size.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.lbl_size.setStyleSheet("font-size: 14px; color: #aaaaaa; font-weight: bold;")
+        info_layout.addWidget(self.lbl_size, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         
-        # 4. NÚT ACTION (Play / Install)
+        layout.addLayout(info_layout)
+        
+        # 4. NÚT ACTION (Phóng to nút)
         self.btn_action = QPushButton("Kiểm tra...")
         self.btn_action.setObjectName("btn_action")
         self.btn_action.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_action.setFixedHeight(30)
+        self.btn_action.setFixedHeight(45) # 30 * 1.5 = 45
+        self.btn_action.setStyleSheet("font-size: 15px; font-weight: bold;")
         self.btn_action.clicked.connect(self.handle_action)
         
         layout.addWidget(self.btn_action)
@@ -262,13 +286,14 @@ class GameCard(QFrame):
         if os.path.exists(self.full_exe_path):
             self.status = "Play"
             self.btn_action.setText("CHƠI NGAY")
-            self.btn_action.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; border-radius: 4px;")
+            # Cập nhật style trực tiếp có gộp thêm font-size mới
+            self.btn_action.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; font-size: 15px; border-radius: 4px;")
             self.btn_action.setEnabled(True)
             self.lbl_size.setText(self.get_display_size())
         else:
             self.status = "Install"
             self.btn_action.setText("Install")
-            self.btn_action.setStyleSheet("background-color: #555555; color: white; font-weight: bold; border-radius: 4px;")
+            self.btn_action.setStyleSheet("background-color: #555555; color: white; font-weight: bold; font-size: 15px; border-radius: 4px;")
             self.btn_action.setEnabled(True)
 
     def handle_action(self):
@@ -279,7 +304,6 @@ class GameCard(QFrame):
             except Exception as e:
                 print(f"Không thể khởi chạy game: {e}")
         elif self.status == "Install":
-            # [ĐIỂM NÂNG CẤP]: Mở hộp thoại thông tin/Donate trước khi tải
             dialog = DonateDialog(self.game_data, self.thumb_path, self)
             
             # Nếu người dùng chọn "No thanks..." (hàm accept được gọi)
@@ -294,7 +318,7 @@ class GameCard(QFrame):
             return
 
         self.btn_action.setEnabled(False)
-        self.btn_action.setStyleSheet("background-color: #f39c12; color: white; font-weight: bold; border-radius: 4px;")
+        self.btn_action.setStyleSheet("background-color: #f39c12; color: white; font-weight: bold; font-size: 15px; border-radius: 4px;")
         self.btn_action.setText("0%")
 
         self.downloader = GameDownloader(download_url, self.game_id, BASE_DIR)

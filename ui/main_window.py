@@ -34,6 +34,7 @@ from ui.setting import SettingsPage, TranslatorWorker
 from ui.show_game_detail import GameDetailPage
 from ui.store_build import StorePage
 from ui.widgets.game_card import GameCard
+from ui.dev_stats import DevStatsPage
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -315,7 +316,7 @@ class MainWindow(QMainWindow):
         top_layout.setContentsMargins(20, 0, 10, 0)
         top_layout.addStretch()
 
-        # --- NÚT CẬP NHẬT LAUNCHER (Được chuyển vào Layout để không bị lệch) ---
+        # --- NÚT CẬP NHẬT LAUNCHER ---
         self.btn_update_launcher = QPushButton("Cập nhật Launcher!", self)
         self.btn_update_launcher.setProperty("is_dynamic", True)
         self.btn_update_launcher.setStyleSheet(
@@ -331,6 +332,13 @@ class MainWindow(QMainWindow):
         self.btn_add_game.setVisible(self.is_admin or self.is_verified)
         top_layout.addWidget(self.btn_add_game)
         self.btn_add_game.clicked.connect(self.open_add_game_dialog)
+
+        # --- [MỚI] NÚT THỐNG KÊ DEVELOPER (ADMIN/VERIFIED) ---
+        self.btn_dev_stats = QPushButton("📊 Thống kê Dev")
+        self.btn_dev_stats.setObjectName("btn_admin")
+        self.btn_dev_stats.setVisible(self.is_admin or self.is_verified)
+        top_layout.addWidget(self.btn_dev_stats)
+        self.btn_dev_stats.clicked.connect(self.on_dev_stats_clicked)
 
         # --- NÚT USER MENU ---
         self.btn_user = QPushButton(f"👤 {self.username.upper()} ▼")
@@ -404,6 +412,11 @@ class MainWindow(QMainWindow):
             )
 
         self.content_area.addWidget(self.settings_page)  # Index 3: Setting
+
+        # --- [MỚI] TRANG THỐNG KÊ DEVELOPER (Index 4) ---
+        self.dev_stats_page = DevStatsPage(self.games_data, self)
+        self.dev_stats_page.refresh_requested.connect(self.refresh_dev_stats_data)
+        self.content_area.addWidget(self.dev_stats_page)  # Index 4: Dev Stats
 
         right_layout.addWidget(self.content_area)
         main_layout.addWidget(right_panel)
@@ -940,3 +953,21 @@ class MainWindow(QMainWindow):
         if hasattr(self, "discord_worker") and self.discord_worker:
             self.discord_worker.stop()
         super().closeEvent(event)
+
+    def on_dev_stats_clicked(self):
+        """Xử lý khi click vào nút Thống kê Dev: Cập nhật data mới và chuyển trang"""
+        # Cập nhật danh sách game mới nhất trước khi vẽ bảng
+        self.dev_stats_page.update_data(self.games_data)
+        self.content_area.setCurrentIndex(4)
+
+    def refresh_dev_stats_data(self):
+        """Xử lý sự kiện khi Dev bấm nút REFRESH ngay trong trang Stats"""
+        # Gọi hàm nạp/tải lại danh sách game từ Server/GitHub của bạn
+        # Giả sử hàm đó của bạn tên là load_games_data() hoặc tương tự:
+        if hasattr(self, "load_games_data"):
+            self.load_games_data()
+        elif hasattr(self, "reload_database"):
+            self.reload_database()
+            
+        # Đẩy dữ liệu sau khi làm mới sang trang thống kê
+        self.dev_stats_page.update_data(self.games_data)

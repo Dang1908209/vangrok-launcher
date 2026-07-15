@@ -3,7 +3,7 @@ import sys
 import json
 import shutil
 import subprocess
-import traceback  # Để truy xuất chi tiết lỗi
+import traceback
 from github import Github
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, 
                              QLabel, QFileDialog, QMessageBox, QProgressBar, QFrame, 
@@ -29,24 +29,25 @@ except ImportError:
 REPO_NAME = "Dang1908209/vangrok-launcher" 
 
 # ==========================================
-# 1. THREAD XỬ LÝ NGẦM (ĐÃ CẬP NHẬT)
+# 1. THREAD XỬ LÝ NGẦM
 # ==========================================
 class UploadGameWorker(QThread):
     progress_signal = pyqtSignal(str, int)
     finished_signal = pyqtSignal(bool, str)
     log_signal = pyqtSignal(str) 
 
-    def __init__(self, game_name, game_version, game_folder, exe_name, cover_path, video_input, description, donate_url, socials):
+    def __init__(self, game_name, developer_name, game_version, game_folder, exe_name, cover_path, video_input, description, donate_url, socials):
         super().__init__()
         self.game_name = game_name
+        self.developer_name = developer_name  # [MỚI] Tên nhà phát triển
         self.game_version = game_version
         self.game_folder = game_folder
         self.exe_name = exe_name
         self.cover_path = cover_path
-        self.video_input = video_input      # [CẬP NHẬT] Có thể là Link YouTube hoặc đường dẫn file .mp4
+        self.video_input = video_input
         self.description = description
-        self.donate_url = donate_url        # [MỚI] Link donate
-        self.socials = socials              # [MỚI] Dictionary chứa link MXH
+        self.donate_url = donate_url
+        self.socials = socials
 
     def run(self):
         try:
@@ -70,7 +71,7 @@ class UploadGameWorker(QThread):
             release = repo.create_git_release(
                 tag=release_tag, 
                 name=f"{self.game_name} {self.game_version}", 
-                message=f"Dữ liệu bản cài đặt {self.game_name} ver {self.game_version}"
+                message=f"Dữ liệu bản cài đặt {self.game_name} ver {self.game_version} bởi {self.developer_name}"
             )
             
             self.log_signal.emit(f"-> Bắt đầu Upload file ZIP (Bước này tốn thời gian tùy mạng)...")
@@ -79,7 +80,7 @@ class UploadGameWorker(QThread):
             self.log_signal.emit(f"-> Upload ZIP thành công! URL: {download_url}")
 
             # ==========================================================
-            # [MỚI] XỬ LÝ VIDEO TRAILER (NẾU LÀ FILE MP4 TRONG MÁY THÌ UPLOAD LÊN RELEASE)
+            # XỬ LÝ VIDEO TRAILER
             # ==========================================================
             final_video_url = self.video_input
             if self.video_input and os.path.exists(self.video_input) and self.video_input.lower().endswith('.mp4'):
@@ -114,15 +115,16 @@ class UploadGameWorker(QThread):
             # Xóa data cũ nếu trùng ID
             games_data = [g for g in games_data if g.get("id") != safe_name]
 
-            # [CẬP NHẬT] Thêm cấu trúc JSON mới cho Donate và Socials
+            # [CẬP NHẬT] Thêm developer vào JSON
             new_game = {
                 "id": safe_name,
                 "name": self.game_name,
+                "developer": self.developer_name,  # [MỚI] Tên nhà phát triển
                 "version": self.game_version, 
                 "description": self.description,
-                "video_url": final_video_url,      # Lưu link Video (YouTube hoặc link MP4 trên Github Release)
-                "donate_url": self.donate_url,     # [MỚI] Link donate cho Dev
-                "socials": self.socials,           # [MỚI] Mạng xã hội của Dev (dict)
+                "video_url": final_video_url,
+                "donate_url": self.donate_url,
+                "socials": self.socials,
                 "exe_path": self.exe_name,
                 "cover": cover_url,
                 "download_url": download_url,
@@ -146,7 +148,7 @@ class UploadGameWorker(QThread):
             subprocess.run(["git", "add", "."], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             self.log_signal.emit("-> Chạy lệnh: git commit")
-            subprocess.run(["git", "commit", "-m", f"Auto-update: Game {self.game_name} ver {self.game_version}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["git", "commit", "-m", f"Auto-update: Game {self.game_name} ver {self.game_version} by {self.developer_name}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             self.log_signal.emit("-> Chạy lệnh: git pull --rebase")
             subprocess.run(["git", "pull", auth_url,"main", "--rebase"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -163,17 +165,17 @@ class UploadGameWorker(QThread):
         except Exception as e:
             error_trace = traceback.format_exc()
             self.log_signal.emit(f"\n❌ LỖI NGHIÊM TRỌNG:\n{error_trace}")
-            self.finished_signal.emit(False, "Quá trình thất bại! Vui lòng đọc dòng lỗi màu đỏ bên bảng Console.")
+            self.finished_signal.emit(False, f"Quá trình thất bại!\nLỗi: {str(e)}")
 
 
 # ==========================================
-# 2. DIALOG NHẬP THÔNG TIN (ĐÃ CẬP NHẬT UI)
+# 2. DIALOG NHẬP THÔNG TIN
 # ==========================================
 class AddGameDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Admin: Thêm Game Mới")
-        self.resize(1050, 680)  # Tăng kích thước cửa sổ để thoải mái hơn
+        self.setWindowTitle("Add New Game")
+        self.resize(600, 700)  # Thu nhỏ kích thước lại do đã bỏ cột Console
         self.folder_path = ""
         self.cover_path = ""
         self.video_path = ""
@@ -182,14 +184,8 @@ class AddGameDialog(QDialog):
         self.apply_stylesheet()
 
     def setup_ui(self):
-        master_layout = QHBoxLayout(self)
-        master_layout.setContentsMargins(20, 20, 20, 20)
-        master_layout.setSpacing(20)
-
-        # ================== CỘT TRÁI (FORM CÓ THANH CUỘN) ==================
-        left_widget = QFrame()
-        main_layout = QVBoxLayout(left_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(10)
 
         lbl_title = QLabel("THÊM TRÒ CHƠI MỚI")
@@ -216,7 +212,7 @@ class AddGameDialog(QDialog):
         left_layout.addStretch()
         content_layout.addLayout(left_layout)
 
-        # --- Input (Đưa vào ScrollArea để không bị tràn màn hình) ---
+        # --- Input (Đưa vào ScrollArea) ---
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.Shape.NoFrame)
@@ -230,6 +226,9 @@ class AddGameDialog(QDialog):
         # Các input cơ bản
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Tên Game (VD: Vangrok RPG)")
+
+        self.dev_input = QLineEdit()
+        self.dev_input.setPlaceholderText("Tên Nhà Phát Triển / Studio")
         
         self.ver_input = QLineEdit()
         self.ver_input.setPlaceholderText("Không bắt buộc (Mặc định: 1.0.0)")
@@ -237,7 +236,6 @@ class AddGameDialog(QDialog):
         self.exe_input = QLineEdit()
         self.exe_input.setPlaceholderText("File khởi chạy (VD: game.exe)")
         
-        # [MỚI] Khung chọn Video (Link web hoặc file MP4)
         video_layout = QHBoxLayout()
         self.video_input = QLineEdit()
         self.video_input.setPlaceholderText("Link YouTube / MP4 (Hoặc bấm chọn file ->)")
@@ -253,7 +251,7 @@ class AddGameDialog(QDialog):
         self.desc_input.setPlaceholderText("Nhập mô tả về game (Không bắt buộc)...")
         self.desc_input.setMaximumHeight(60)
         
-        # [MỚI] Các input cho Donate & Mạng xã hội
+        # Các input cho Donate & Mạng xã hội
         self.donate_input = QLineEdit()
         self.donate_input.setPlaceholderText("Link Donate (Momo, Paypal, Ko-fi...)")
         
@@ -270,6 +268,9 @@ class AddGameDialog(QDialog):
         right_layout.addWidget(QLabel("<b>1. Thông tin trò chơi:</b>"))
         right_layout.addWidget(QLabel("Tên trò chơi (*):"))
         right_layout.addWidget(self.name_input)
+
+        right_layout.addWidget(QLabel("Nhà phát triển (*):"))
+        right_layout.addWidget(self.dev_input)
         
         right_layout.addWidget(QLabel("Phiên bản:"))
         right_layout.addWidget(self.ver_input)
@@ -336,26 +337,6 @@ class AddGameDialog(QDialog):
         self.btn_start.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_start.clicked.connect(self.start_process)
         main_layout.addWidget(self.btn_start)
-
-        master_layout.addWidget(left_widget, stretch=5)
-
-        # ================== CỘT PHẢI (CONSOLE) ==================
-        right_widget = QFrame()
-        console_layout = QVBoxLayout(right_widget)
-        console_layout.setContentsMargins(0, 0, 0, 0)
-        
-        lbl_console = QLabel("💻 THÔNG TIN TIẾN TRÌNH (CONSOLE)")
-        lbl_console.setObjectName("title")
-        lbl_console.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        console_layout.addWidget(lbl_console)
-
-        self.console_output = QTextEdit()
-        self.console_output.setReadOnly(True)
-        self.console_output.setObjectName("console_output")
-        self.console_output.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap) 
-        console_layout.addWidget(self.console_output)
-
-        master_layout.addWidget(right_widget, stretch=4)
 
     def apply_stylesheet(self):
         self.setStyleSheet("""
@@ -448,15 +429,6 @@ class AddGameDialog(QDialog):
                 background-color: #e53935;
                 border-radius: 4px;
             }
-            QTextEdit#console_output {
-                background-color: #0c0c0c;
-                color: #00ff00;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 12px;
-                border: 1px solid #444444;
-                border-radius: 6px;
-                padding: 8px;
-            }
             QScrollArea QScrollBar:vertical {
                 background: #1e1e1e;
                 width: 8px;
@@ -508,21 +480,20 @@ class AddGameDialog(QDialog):
             ))
             self.img_preview.setStyleSheet("border: 1px solid #555;")
 
-    # [MỚI] Hàm cho phép duyệt tìm file video .mp4 từ máy tính
     def select_video(self):
         file, _ = QFileDialog.getOpenFileName(self, "Chọn video trailer MP4", "", "Video Files (*.mp4)")
         if file:
             self.video_path = file
-            self.video_input.setText(file)  # Hiển thị đường dẫn file vào ô input
+            self.video_input.setText(file)
 
     def start_process(self):
         game_name = self.name_input.text().strip()
+        developer_name = self.dev_input.text().strip()
         exe_name = self.exe_input.text().strip()
         game_ver = self.ver_input.text().strip()
         video_input = self.video_input.text().strip()
         description = self.desc_input.toPlainText().strip()
 
-        # [MỚI] Lấy dữ liệu Donate và Socials
         donate_url = self.donate_input.text().strip()
         socials = {
             "facebook": self.fb_input.text().strip(),
@@ -533,33 +504,32 @@ class AddGameDialog(QDialog):
         if not game_ver:
             game_ver = "1.0.0"
 
-        if not game_name or not exe_name or not self.folder_path:
-            QMessageBox.warning(self, "Thiếu thông tin", "Vui lòng nhập các thông tin bắt buộc (*): Tên Game, File chạy và chọn Folder!")
+        if not game_name or not developer_name or not exe_name or not self.folder_path:
+            QMessageBox.warning(self, "Thiếu thông tin", "Vui lòng nhập các thông tin bắt buộc (*): Tên Game, Nhà phát triển, File chạy và chọn Folder!")
             return
 
-        self.console_output.clear()
         self.btn_start.setEnabled(False)
         
         self.worker = UploadGameWorker(
             game_name, 
+            developer_name,
             game_ver, 
             self.folder_path, 
             exe_name, 
             self.cover_path,
-            video_input,    # Truyền video (link web hoặc đường dẫn mp4)
+            video_input, 
             description,
-            donate_url,     # Truyền link donate
-            socials         # Truyền dictionary mạng xã hội
+            donate_url, 
+            socials 
         )
         self.worker.progress_signal.connect(self.update_progress)
-        self.worker.log_signal.connect(self.append_log) 
+        self.worker.log_signal.connect(self.print_log)  # Kết nối với hàm in terminal
         self.worker.finished_signal.connect(self.process_finished)
         self.worker.start()
 
-    def append_log(self, text):
-        self.console_output.append(text)
-        scrollbar = self.console_output.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+    def print_log(self, text):
+        """In log ra terminal để dev có thể kiểm tra tiến trình khi cần"""
+        print(text)
 
     def update_progress(self, status_text, percent):
         self.lbl_status.setText(f"Trạng thái: {status_text}")
