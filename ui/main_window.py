@@ -34,6 +34,7 @@ from ui.setting import SettingsPage, TranslatorWorker
 from ui.show_game_detail import GameDetailPage
 from ui.store_build import StorePage
 from ui.widgets.game_card import GameCard
+from ui.dev_stats import DevStatsPage
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -404,6 +405,11 @@ class MainWindow(QMainWindow):
             )
 
         self.content_area.addWidget(self.settings_page)  # Index 3: Setting
+
+        # --- [MỚI] TRANG THỐNG KÊ DEVELOPER (Index 4) ---
+        self.dev_stats_page = DevStatsPage(self.games_data, self)
+        self.dev_stats_page.refresh_requested.connect(self.refresh_dev_stats_data)
+        self.content_area.addWidget(self.dev_stats_page)  # Index 4: Dev Stats
 
         right_layout.addWidget(self.content_area)
         main_layout.addWidget(right_panel)

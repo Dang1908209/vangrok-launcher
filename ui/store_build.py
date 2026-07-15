@@ -239,6 +239,7 @@ class StorePage(QWidget):
 
     def filter_games(self, query):
         """Hàm lọc và hiển thị lại các GameCard dựa trên từ khóa."""
+        print(f"[DEBUG Store] Tổng số game trong data hiện tại: {len(self.games_data)}")
         while self.cards_layout.count():
             item = self.cards_layout.takeAt(0)
             if item.widget():

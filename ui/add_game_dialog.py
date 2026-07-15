@@ -39,6 +39,7 @@ class UploadGameWorker(QThread):
     def __init__(self, game_name, game_version, game_folder, exe_name, cover_path, video_input, description, donate_url, socials):
         super().__init__()
         self.game_name = game_name
+        self.developer_name = developer_name  # [MỚI] Tên nhà phát triển
         self.game_version = game_version
         self.game_folder = game_folder
         self.exe_name = exe_name
@@ -70,7 +71,7 @@ class UploadGameWorker(QThread):
             release = repo.create_git_release(
                 tag=release_tag, 
                 name=f"{self.game_name} {self.game_version}", 
-                message=f"Dữ liệu bản cài đặt {self.game_name} ver {self.game_version}"
+                message=f"Dữ liệu bản cài đặt {self.game_name} ver {self.game_version} bởi {self.developer_name}"
             )
             
             self.log_signal.emit(f"-> Bắt đầu Upload file ZIP (Bước này tốn thời gian tùy mạng)...")
@@ -118,6 +119,7 @@ class UploadGameWorker(QThread):
             new_game = {
                 "id": safe_name,
                 "name": self.game_name,
+                "developer": self.developer_name,  # [MỚI] Tên nhà phát triển
                 "version": self.game_version, 
                 "description": self.description,
                 "video_url": final_video_url,      # Lưu link Video (YouTube hoặc link MP4 trên Github Release)
@@ -146,13 +148,13 @@ class UploadGameWorker(QThread):
             subprocess.run(["git", "add", "."], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             self.log_signal.emit("-> Chạy lệnh: git commit")
-            subprocess.run(["git", "commit", "-m", f"Auto-update: Game {self.game_name} ver {self.game_version}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["git", "commit", "-m", f"Auto-update: Game {self.game_name} ver {self.game_version} by {self.developer_name}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             self.log_signal.emit("-> Chạy lệnh: git pull --rebase")
-            subprocess.run(["git", "pull", auth_url, "--rebase"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["git", "pull", auth_url,"main", "--rebase"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
             self.log_signal.emit("-> Chạy lệnh: git push")
-            push_process = subprocess.run(["git", "push", auth_url], capture_output=True, text=True, encoding="utf-8")
+            push_process = subprocess.run(["git", "push", auth_url,"HEAD:main"], capture_output=True, text=True, encoding="utf-8")
             if push_process.returncode != 0:
                 raise Exception(f"Lỗi Git Push chi tiết:\n{push_process.stderr or push_process.stdout}")
 
@@ -163,7 +165,7 @@ class UploadGameWorker(QThread):
         except Exception as e:
             error_trace = traceback.format_exc()
             self.log_signal.emit(f"\n❌ LỖI NGHIÊM TRỌNG:\n{error_trace}")
-            self.finished_signal.emit(False, "Quá trình thất bại! Vui lòng đọc dòng lỗi màu đỏ bên bảng Console.")
+            self.finished_signal.emit(False, f"Quá trình thất bại!\nLỗi: {str(e)}")
 
 
 # ==========================================
@@ -230,6 +232,9 @@ class AddGameDialog(QDialog):
         # Các input cơ bản
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Tên Game (VD: Vangrok RPG)")
+
+        self.dev_input = QLineEdit()
+        self.dev_input.setPlaceholderText("Tên Nhà Phát Triển / Studio")
         
         self.ver_input = QLineEdit()
         self.ver_input.setPlaceholderText("Không bắt buộc (Mặc định: 1.0.0)")
@@ -270,6 +275,9 @@ class AddGameDialog(QDialog):
         right_layout.addWidget(QLabel("<b>1. Thông tin trò chơi:</b>"))
         right_layout.addWidget(QLabel("Tên trò chơi (*):"))
         right_layout.addWidget(self.name_input)
+
+        right_layout.addWidget(QLabel("Nhà phát triển (*):"))
+        right_layout.addWidget(self.dev_input)
         
         right_layout.addWidget(QLabel("Phiên bản:"))
         right_layout.addWidget(self.ver_input)
@@ -448,14 +456,17 @@ class AddGameDialog(QDialog):
                 background-color: #e53935;
                 border-radius: 4px;
             }
-            QTextEdit#console_output {
-                background-color: #0c0c0c;
-                color: #00ff00;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 12px;
-                border: 1px solid #444444;
-                border-radius: 6px;
-                padding: 8px;
+            QScrollArea QScrollBar:vertical {
+                background: #1e1e1e;
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollArea QScrollBar::handle:vertical {
+                background: #555555;
+                border-radius: 4px;
+            }
+            QScrollArea QScrollBar::handle:vertical:hover {
+                background: #e53935;
             }
             QScrollArea QScrollBar:vertical {
                 background: #1e1e1e;
@@ -517,6 +528,7 @@ class AddGameDialog(QDialog):
 
     def start_process(self):
         game_name = self.name_input.text().strip()
+        developer_name = self.dev_input.text().strip()
         exe_name = self.exe_input.text().strip()
         game_ver = self.ver_input.text().strip()
         video_input = self.video_input.text().strip()
@@ -537,11 +549,11 @@ class AddGameDialog(QDialog):
             QMessageBox.warning(self, "Thiếu thông tin", "Vui lòng nhập các thông tin bắt buộc (*): Tên Game, File chạy và chọn Folder!")
             return
 
-        self.console_output.clear()
         self.btn_start.setEnabled(False)
         
         self.worker = UploadGameWorker(
             game_name, 
+            developer_name,
             game_ver, 
             self.folder_path, 
             exe_name, 
@@ -552,14 +564,13 @@ class AddGameDialog(QDialog):
             socials         # Truyền dictionary mạng xã hội
         )
         self.worker.progress_signal.connect(self.update_progress)
-        self.worker.log_signal.connect(self.append_log) 
+        self.worker.log_signal.connect(self.print_log)  # Kết nối với hàm in terminal
         self.worker.finished_signal.connect(self.process_finished)
         self.worker.start()
 
-    def append_log(self, text):
-        self.console_output.append(text)
-        scrollbar = self.console_output.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+    def print_log(self, text):
+        """In log ra terminal để dev có thể kiểm tra tiến trình khi cần"""
+        print(text)
 
     def update_progress(self, status_text, percent):
         self.lbl_status.setText(f"Trạng thái: {status_text}")
