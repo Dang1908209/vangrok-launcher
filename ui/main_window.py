@@ -281,7 +281,7 @@ class MainWindow(QMainWindow):
         self.sidebar_layout.addWidget(self.btn_library)
 
         # --- NÚT NEWS ---
-        self.btn_news = self.create_nav_button("📢 NEWS")
+        self.btn_news = self.create_nav_button("NEWS")
         self.btn_news.clicked.connect(self.show_news)
         self.sidebar_layout.addWidget(self.btn_news)
 
@@ -408,7 +408,7 @@ class MainWindow(QMainWindow):
 
         # --- [MỚI] TRANG THỐNG KÊ DEVELOPER (Index 4) ---
         self.dev_stats_page = DevStatsPage(self.games_data, self)
-        self.dev_stats_page.refresh_requested.connect(self.refresh_dev_stats_data)
+        #self.dev_stats_page.refresh_requested.connect(self.refresh_dev_stats_data)
         self.content_area.addWidget(self.dev_stats_page)  # Index 4: Dev Stats
 
         right_layout.addWidget(self.content_area)

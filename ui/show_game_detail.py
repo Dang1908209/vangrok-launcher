@@ -1,5 +1,4 @@
 import os
-import re
 import urllib.request
 from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import (
@@ -8,7 +7,6 @@ from PyQt6.QtGui import (
     QLinearGradient,
     QPainter,
     QPixmap,
-    QCursor
 )
 from PyQt6.QtWidgets import (
     QFrame,
@@ -18,30 +16,11 @@ from PyQt6.QtWidgets import (
     QStackedWidget,
     QVBoxLayout,
     QWidget,
-    QScrollArea,
-    QSizePolicy
 )
 
 
 # ==========================================
-# CÁC HÀM HỖ TRỢ XỬ LÝ YOUTUBE
-# ==========================================
-def get_youtube_id(url):
-    """Trích xuất ID của video từ link YouTube"""
-    regex = r'(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
-    match = re.search(regex, url)
-    return match.group(1) if match else None
-
-def get_media_thumbnail_url(url):
-    """Tự động lấy ảnh đại diện: Nếu là YouTube thì lấy ảnh của YouTube, nếu là ảnh thì giữ nguyên"""
-    yt_id = get_youtube_id(url)
-    if yt_id:
-        return f"https://img.youtube.com/vi/{yt_id}/mqdefault.jpg"
-    return url
-
-
-# ==========================================
-# LUỒNG TẢI ẢNH NGẦM
+# LUỒNG TẢI ẢNH NGẦM (KHẮC PHỤC TRIỆT ĐỂ LỖI SSL PYQT6)
 # ==========================================
 class ImageDownloader(QThread):
     data_downloaded = pyqtSignal(bytes, str)
@@ -52,6 +31,7 @@ class ImageDownloader(QThread):
 
     def run(self):
         try:
+            # Giả lập trình duyệt Chrome để không bị GitHub/Server từ chối
             req = urllib.request.Request(
                 self.url,
                 headers={
@@ -66,7 +46,8 @@ class ImageDownloader(QThread):
                 data = response.read()
                 self.data_downloaded.emit(data, self.url)
         except Exception as e:
-            print(f"[❌ LỖI URLLIB] URL: {self.url} | Lỗi: {str(e)}")
+            print(f"[❌ LỖI URLLIB] URL: {self.url}")
+            print(f"[❌ CHI TIẾT LỖI]: {str(e)}")
             self.data_downloaded.emit(b"", self.url)
 
 
@@ -83,8 +64,8 @@ class ShimmerLabel(QLabel):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet("""
             border-radius: 8px; 
-            border: 2px solid #333333; 
-            background-color: #1a1a1a; color: #888; font-weight: bold;
+            border: 2px solid #ff4d4d; 
+            background-color: #232323;
         """)
 
     def start_shimmer(self):
@@ -108,15 +89,18 @@ class ShimmerLabel(QLabel):
         if self.is_loading:
             box_painter = QPainter(self)
             box_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
             rect = self.rect()
-            box_painter.fillRect(rect, QColor("#1a1a1a"))
+            box_painter.fillRect(rect, QColor("#333333"))
 
             w = self.width()
             x = int(self._shimmer_pos * w)
+
             grad = QLinearGradient(x - w * 0.3, 0, x + w * 0.3, 0)
-            grad.setColorAt(0.0, QColor("#1a1a1a"))
-            grad.setColorAt(0.5, QColor("#3a3a3a"))
-            grad.setColorAt(1.0, QColor("#1a1a1a"))
+            grad.setColorAt(0.0, QColor("#333333"))
+            grad.setColorAt(0.5, QColor("#5c5c5c"))
+            grad.setColorAt(1.0, QColor("#333333"))
+
             box_painter.fillRect(rect, grad)
 
 
@@ -135,7 +119,6 @@ class GameDetailPage(QWidget):
         self.current_status = "Install"
 
         self.media_list = []
-        self.thumbnail_widgets = []
         self.current_media_index = 0
         self.current_media_url = ""
 
@@ -148,8 +131,11 @@ class GameDetailPage(QWidget):
         # Biến lưu trữ luồng tải ảnh hiện tại
         self.downloader = None
 
+        # --- BẮT BUỘC ĐỂ QWIDGET NHẬN MÀU NỀN GRADIENT TỪ STYLESHEET ---
         self.setObjectName("GameDetailPage")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        # --------------------------------------------------------------
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -174,66 +160,57 @@ class GameDetailPage(QWidget):
             QLabel {
                 background: transparent;
             }
-            QLabel { background: transparent; }
-            QScrollArea { border: none; background: transparent; }
-            QScrollBar:vertical { background: #1a1a1a; width: 8px; }
-            QScrollBar::handle:vertical { background: #444; border-radius: 4px; }
-            QScrollBar::handle:vertical:hover { background: #ff4d4d; }
         """)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(30, 20, 30, 20)
-        layout.setSpacing(15)
+        layout.setSpacing(20)
 
         # --- NÚT QUAY LẠI ---
         self.btn_back = QPushButton("⬅ QUAY LẠI CỬA HÀNG")
         self.btn_back.setStyleSheet("""
-            QPushButton { color: #ff4d4d; font-size: 14px; font-weight: bold; text-align: left; padding: 0px; background: transparent; border: none; }
+            QPushButton {
+                color: #ff4d4d; font-size: 14px; font-weight: bold; 
+                text-align: left; padding: 0px; background: transparent; border: none;
+            }
             QPushButton:hover { color: #ff6666; text-decoration: underline; }
         """)
         self.btn_back.setFixedWidth(220)
         self.btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_back.clicked.connect(self.on_back_clicked)
+        self.btn_back.clicked.connect(self.back_requested.emit)
         layout.addWidget(self.btn_back)
 
         # ================= KHU VỰC THÔNG TIN CHÍNH (HEADER) =================
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(25)
+        header_layout.setSpacing(30)
 
-        # --- CỘT TRÁI: MEDIA GALLERY (MÀN HÌNH CHÍNH + DANH SÁCH BÊN PHẢI) ---
-        media_gallery_layout = QHBoxLayout()
-        media_gallery_layout.setSpacing(10)
+        media_container = QVBoxLayout()
+        media_container.setSpacing(8)
 
         # 1. PHÓNG TO ẢNH GAME LÊN 480x270 (CHUẨN 16:9)
         self.media_stack = QStackedWidget()
-        self.media_stack.setFixedSize(600, 338)
-        self.media_stack.setStyleSheet("background-color: #111; border-radius: 8px; border: 2px solid #333;")
+        self.media_stack.setFixedSize(480, 270)
 
-        self.lbl_main_image = ShimmerLabel()
-        self.lbl_main_image.setStyleSheet("border-radius: 8px; border: none;")
-        self.media_stack.addWidget(self.lbl_main_image) # Index 0: Hiển thị ảnh
+        self.lbl_thumbnail = ShimmerLabel()
+        self.media_stack.addWidget(self.lbl_thumbnail)
 
-        # Index 1: Trình phát Video (QWebEngineView)
-        if WEB_ENGINE_AVAILABLE:
-            self.video_player = QWebEngineView()
-            self.video_player.setStyleSheet("background-color: #000; border-radius: 8px;")
-            self.media_stack.addWidget(self.video_player)
-        else:
-            # Fallback nếu chưa cài PyQt6-WebEngine
-            self.fallback_video_frame = QFrame()
-            fb_layout = QVBoxLayout(self.fallback_video_frame)
-            fb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl_err = QLabel("⚠️ Cần cài đặt 'PyQt6-WebEngine' để xem Video trực tiếp")
-            lbl_err.setStyleSheet("color: #f39c12; font-size: 14px; font-weight: bold;")
-            btn_open_ext = QPushButton("🎬 Mở Trình Duyệt Để Xem")
-            btn_open_ext.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn_open_ext.setStyleSheet("background-color: #ff4d4d; color: white; padding: 10px 20px; font-weight: bold; border-radius: 5px;")
-            btn_open_ext.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(self.media_list[self.current_media_index])))
-            fb_layout.addWidget(lbl_err)
-            fb_layout.addWidget(btn_open_ext)
-            self.media_stack.addWidget(self.fallback_video_frame)
+        self.video_preview_widget = QFrame()
+        self.video_preview_widget.setStyleSheet("""
+            QFrame {
+                background-color: #1a1a1a; 
+                border-radius: 8px; 
+                border: 2px solid #ff4d4d;
+            }
+        """)
+        video_layout = QVBoxLayout(self.video_preview_widget)
+        video_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        video_layout.setSpacing(15)
 
-        media_gallery_layout.addWidget(self.media_stack)
+        lbl_video_icon = QLabel("🎬 VIDEO TRAILER / TEASER")
+        lbl_video_icon.setStyleSheet(
+            "color: #ffffff; font-size: 16px; font-weight: bold; border: none; background: transparent;"
+        )
+        lbl_video_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.btn_play_video = QPushButton("▶ Xem Trailer (MP4 / YouTube)")
         self.btn_play_video.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -247,16 +224,19 @@ class GameDetailPage(QWidget):
         """)
         self.btn_play_video.clicked.connect(self.open_video_url)
 
-        self.thumbnails_container = QWidget()
-        self.thumbnails_layout = QVBoxLayout(self.thumbnails_container)
-        self.thumbnails_layout.setContentsMargins(0, 0, 5, 0)
-        self.thumbnails_layout.setSpacing(8)
-        self.thumbnails_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        video_layout.addWidget(lbl_video_icon)
+        video_layout.addWidget(self.btn_play_video)
 
-        self.scroll_area.setWidget(self.thumbnails_container)
-        media_gallery_layout.addWidget(self.scroll_area)
+        self.media_stack.addWidget(self.video_preview_widget)
 
-        header_layout.addLayout(media_gallery_layout)
+        nav_layout = QHBoxLayout()
+        self.btn_prev_media = QPushButton("◀")
+        self.btn_next_media = QPushButton("▶")
+        self.lbl_media_indicator = QLabel("0/0")
+        self.lbl_media_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_media_indicator.setStyleSheet(
+            "color: #aaa; font-size: 13px; font-weight: bold; background: transparent;"
+        )
 
         for btn in (self.btn_prev_media, self.btn_next_media):
             btn.setFixedSize(35, 28)
@@ -279,11 +259,12 @@ class GameDetailPage(QWidget):
 
         # --- CỘT BÊN PHẢI (TÊN GAME -> LINE ĐỎ -> NÚT ACTION -> DONATE & SOCIALS) ---
         info_layout = QVBoxLayout()
-        info_layout.setSpacing(10)
+        info_layout.setSpacing(12)
 
-        # Tên Game
         self.detail_title = QLabel("Game Title")
-        self.detail_title.setStyleSheet("font-size: 34px; font-weight: 800; color: white; margin-bottom: 0px;")
+        self.detail_title.setStyleSheet(
+            "font-size: 38px; font-weight: 800; color: white; margin-bottom: 0px;"
+        )
         self.detail_title.setWordWrap(True)
         info_layout.addWidget(self.detail_title)
 
@@ -357,21 +338,33 @@ class GameDetailPage(QWidget):
 
         # ================= KHU VỰC MÔ TẢ (BOX FRAME) =================
         self.desc_frame = QFrame()
-        self.desc_frame.setStyleSheet("QFrame#DescBox { background-color: #1a1a1a; border: 1px solid #333; border-radius: 8px; }")
+        self.desc_frame.setStyleSheet("""
+            QFrame#DescBox {
+                background-color: #1a1a1a;
+                border: 1px solid #333333;
+                border-radius: 8px;
+            }
+        """)
         self.desc_frame.setObjectName("DescBox")
 
         desc_layout = QVBoxLayout(self.desc_frame)
-        desc_layout.setContentsMargins(20, 15, 20, 15)
-        desc_layout.setSpacing(8)
+        desc_layout.setContentsMargins(20, 20, 20, 20)
+        desc_layout.setSpacing(12)
 
         lbl_about = QLabel("■ VỀ TRÒ CHƠI NÀY")
-        lbl_about.setStyleSheet("color: #ff4d4d; font-size: 14px; font-weight: bold; letter-spacing: 1px;")
+        lbl_about.setStyleSheet(
+            "color: #ff4d4d; font-size: 14px; font-weight: bold; letter-spacing: 1px; border: none; background: transparent;"
+        )
         desc_layout.addWidget(lbl_about)
 
         self.detail_desc = QLabel()
-        self.detail_desc.setStyleSheet("color: #dddddd; font-size: 14px; line-height: 1.5;")
+        self.detail_desc.setStyleSheet(
+            "color: #dddddd; font-size: 15px; line-height: 1.6; border: none; background: transparent;"
+        )
         self.detail_desc.setWordWrap(True)
-        self.detail_desc.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.detail_desc.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
         desc_layout.addWidget(self.detail_desc)
 
         layout.addWidget(self.desc_frame, stretch=1)
@@ -380,10 +373,6 @@ class GameDetailPage(QWidget):
         """Hàm nhận dữ liệu game và tự động kiểm tra trạng thái cài đặt thực tế"""
         self.current_game_data = game_data
         self.detail_title.setText(game_data.get("name", "Unknown Game"))
-        
-        # [MỚI] Cập nhật Developer Name
-        dev_name = game_data.get("developer", game_data.get("dev", "Unknown Developer"))
-        self.detail_dev.setText(f"by {dev_name}")
 
         # =========================================================================
         # KIỂM TRA TRỰC TIẾP TRÊN Ổ CỨNG XEM GAME ĐÃ CÀI CHƯA
@@ -436,28 +425,18 @@ class GameDetailPage(QWidget):
 
         # Tải danh sách hình ảnh & video
         self.media_list.clear()
-        video_url = game_data.get("video_url", "").strip()
-        if video_url:
-            self.media_list.append(video_url) # Ưu tiên để Video lên đầu danh sách
-
         covers = game_data.get("cover", [])
         if isinstance(covers, str) and covers.strip():
-            if covers.strip() not in self.media_list: self.media_list.append(covers.strip())
+            self.media_list.append(covers)
         elif isinstance(covers, list):
-            for c in covers:
-                if c and str(c).strip() not in self.media_list: self.media_list.append(str(c).strip())
+            self.media_list.extend(covers)
 
-        self.build_thumbnails_gallery()
-        self.select_media(0) # Mặc định chọn mục đầu tiên
+        video_url = game_data.get("video_url", "")
+        if video_url:
+            self.media_list.append(video_url)
 
-    def build_thumbnails_gallery(self):
-        """Tạo danh sách thẻ Thumbnail xếp dọc bên phải"""
-        # Xóa các widget cũ trong gallery
-        while self.thumbnails_layout.count():
-            item = self.thumbnails_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self.thumbnail_widgets.clear()
+        self.current_media_index = 0
+        self.update_media_viewer()
 
     def update_action_button_ui(self):
         """Cập nhật Giao diện (Màu sắc, chữ) của nút Action dựa theo self.current_status"""
@@ -507,9 +486,10 @@ class GameDetailPage(QWidget):
             self.lbl_media_indicator.setText("0/0")
             return
 
-    def select_media(self, index):
-        """Khi click vào ảnh/video nào bên cột phải thì hiển thị lên màn hình chính bên trái"""
-        if not self.media_list or index >= len(self.media_list): return
+        self.lbl_media_indicator.setText(
+            f"{self.current_media_index + 1}/{len(self.media_list)}"
+        )
+        self.current_media_url = self.media_list[self.current_media_index]
 
         # [CẬP NHẬT] Nhận diện cả file MP4 tải về từ GitHub Release lẫn YouTube
         is_video = (
@@ -518,83 +498,75 @@ class GameDetailPage(QWidget):
             or "youtu.be" in self.current_media_url.lower()
         )
 
-        self.current_media_index = index
-        url = self.media_list[index]
-
-        yt_id = get_youtube_id(url)
-        is_mp4 = url.lower().endswith(('.mp4', '.webm'))
-
-        # Nếu là Video (YouTube hoặc MP4) -> Bật Trình phát Video
-        if yt_id or is_mp4:
+        if is_video:
             self.media_stack.setCurrentIndex(1)
-            if WEB_ENGINE_AVAILABLE:
-                if yt_id:
-                    # Nhúng YouTube Player với chế độ tự động phát (autoplay=1)
-                    embed_html = f"""
-                    <body style="margin:0; background-color:black;">
-                        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/{yt_id}?autoplay=1&rel=0" 
-                        frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-                    </body>
-                    """
-                    self.video_player.setHtml(embed_html)
-                else:
-                    # Nhúng trình phát MP4 HTML5
-                    embed_html = f"""
-                    <body style="margin:0; background-color:black; display:flex; justify-content:center; align-items:center;">
-                        <video width="100%" height="100%" controls autoplay>
-                            <source src="{url}" type="video/mp4">
-                        </video>
-                    </body>
-                    """
-                    self.video_player.setHtml(embed_html)
         else:
-            # Nếu là Ảnh -> Dừng video đang phát, bật ShimmerLabel tải ảnh
-            self.stop_video()
             self.media_stack.setCurrentIndex(0)
-            self.load_main_image(url)
+            self.load_image_async(self.current_media_url)
 
     def load_image_async(self, url):
         self.lbl_thumbnail.start_shimmer()
 
-    def on_back_clicked(self):
-        self.stop_video()
-        self.back_requested.emit()
-
-    def load_main_image(self, url):
-        self.lbl_main_image.start_shimmer()
+        # Nếu là đường dẫn tệp cục bộ (Local file)
         if not url.startswith("http"):
             full_path = os.path.join(self.base_dir, url)
             if os.path.exists(full_path):
-                self.lbl_main_image.stop_shimmer()
-                self._set_main_pixmap(QPixmap(full_path))
+                self.lbl_thumbnail.stop_shimmer()
+                self._set_pixmap_scaled(QPixmap(full_path))
+            else:
+                self.lbl_thumbnail.stop_shimmer()
+                self.lbl_thumbnail.setText("LỖI ĐƯỜNG DẪN ẢNH")
             return
 
+        # Khởi tạo luồng tải ảnh ngầm bằng urllib
         self.downloader = ImageDownloader(url, self)
-        self.downloader.data_downloaded.connect(self.on_main_image_downloaded)
+        self.downloader.data_downloaded.connect(self.on_image_downloaded)
         self.downloader.start()
 
     def on_image_downloaded(self, data, url):
         if url != self.current_media_url:
             return
 
-    def _set_main_pixmap(self, pixmap):
-        self.lbl_main_image.setPixmap(
-            pixmap.scaled(self.lbl_main_image.width(), self.lbl_main_image.height(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
-        )
+        self.lbl_thumbnail.stop_shimmer()
 
-    def update_action_button_ui(self):
-        styles = {
-            "Play": ("CHƠI NGAY", "#27ae60", "#2ecc71"),
-            "Update": ("CẬP NHẬT", "#f39c12", "#f1c40f"),
-            "Install": ("CÀI ĐẶT", "#ff4d4d", "#ff6666")
-        }
-        text, bg, hover = styles.get(self.current_status, styles["Install"])
-        self.detail_btn_action.setText(text)
-        self.detail_btn_action.setStyleSheet(f"""
-            QPushButton {{ background-color: {bg}; color: white; font-size: 18px; font-weight: bold; border-radius: 5px; border: none; }}
-            QPushButton:hover {{ background-color: {hover}; }}
-        """)
+        if not data:
+            self.lbl_thumbnail.setText("LỖI MẠNG")
+            return
 
-    def open_external_link(self, url):
-        if url and isinstance(url, str) and url.strip():
-            QDesktopServices.openUrl(QUrl(url.strip()))
+        pixmap = QPixmap()
+        pixmap.loadFromData(data)
+
+        if pixmap.isNull():
+            self.lbl_thumbnail.setText("ẢNH BỊ LỖI")
+            print(f"[❌ LỖI DỮ LIỆU] File tải về không phải ảnh hợp lệ: {url}")
+        else:
+            self._set_pixmap_scaled(pixmap)
+
+    def _set_pixmap_scaled(self, pixmap):
+        if not pixmap.isNull():
+            self.lbl_thumbnail.setPixmap(
+                pixmap.scaled(
+                    self.lbl_thumbnail.width(),
+                    self.lbl_thumbnail.height(),
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+
+    def open_video_url(self):
+        if self.current_media_url:
+            QDesktopServices.openUrl(QUrl(self.current_media_url))
+
+    def prev_media(self):
+        if self.media_list:
+            self.current_media_index = (self.current_media_index - 1) % len(
+                self.media_list
+            )
+            self.update_media_viewer()
+
+    def next_media(self):
+        if self.media_list:
+            self.current_media_index = (self.current_media_index + 1) % len(
+                self.media_list
+            )
+            self.update_media_viewer()

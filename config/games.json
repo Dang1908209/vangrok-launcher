@@ -1,1 +1,20 @@
-[]
+[
+    {
+        "id": "toad_mountain",
+        "name": "Toad Mountain",
+        "developer": "Bi",
+        "version": "1.0.0",
+        "description": "",
+        "video_url": "",
+        "donate_url": "",
+        "socials": {
+            "facebook": "",
+            "discord": "",
+            "website": ""
+        },
+        "exe_path": "Toad Mountain.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/toad_mountain_cover.png",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_toad_mountain_1_0_0/toad_mountain.zip",
+        "size": 35.1
+    }
+]
