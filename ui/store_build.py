@@ -1,6 +1,7 @@
 import os
+import json
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QFrame, QProgressBar, QLineEdit, QPushButton,
+                             QFrame, QLineEdit, QPushButton,
                              QCalendarWidget)
 from PyQt6.QtCore import Qt, pyqtSignal, QDate, QTimer, QDateTime
 from PyQt6.QtGui import QFontDatabase
@@ -16,7 +17,7 @@ class StorePage(QWidget):
         super().__init__(parent)
         self.games_data = games_data
         
-        # --- BẮT BUỘC ĐỂ QWIDGET NHẬN MAU NỀN TỪ STYLESHEET ---
+        # --- BẮT BUỘC ĐỂ QWIDGET NHẬN MÀU NỀN TỪ STYLESHEET ---
         self.setObjectName("StorePage")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         # -----------------------------------------------------
@@ -31,6 +32,29 @@ class StorePage(QWidget):
             for font_file in os.listdir(fonts_dir):
                 if font_file.endswith(('.ttf', '.otf')):
                     QFontDatabase.addApplicationFont(os.path.join(fonts_dir, font_file))
+
+    def get_launcher_version(self):
+        """Đọc phiên bản Launcher từ file JSON cấu hình"""
+        possible_paths = [
+            os.path.join(BASE_DIR, "config", "version.json"),
+            os.path.join(BASE_DIR, "config", "settings.json"),
+            os.path.join(BASE_DIR, "version.json")
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        # Hỗ trợ các key phổ biến thường dùng trong file config
+                        version = data.get("version") or data.get("launcher_version") or data.get("app_version")
+                        if version:
+                            return f"Vangrok Launcher v{version}"
+                except Exception:
+                    pass
+                
+        # Giá trị mặc định nếu không đọc được từ JSON
+        return "Vangrok Launcher v1.0.0"
 
     def setup_ui(self):
         # Cấu hình Style chung và tùy biến Lịch (QCalendarWidget) sang giao diện tối
@@ -49,31 +73,6 @@ class StorePage(QWidget):
                     stop: 1.0 #111111
                 );
             }
-            
-            #storage_frame {
-                border: 1px solid #ff4d4d; 
-                border-radius: 5px; 
-                background: qlineargradient(
-                    x1:0, y1:0,
-                    x2:0, y2:1,
-                    stop:0 #424242,
-                    stop:1 #4a4a4a
-                );
-                padding: 10px; 
-                min-width: 150px;
-            }
-            
-            #storage_progress { 
-                border: none;
-                background: qlineargradient(
-                    x1:0, y1:0,
-                    x2:0, y2:1,
-                    stop:0 #383838,
-                    stop:1 #4a4a4a
-                ); 
-                border-radius: 5px; 
-            }
-            #storage_progress::chunk { background-color: #ff4d4d; border-radius: 5px; }
             
             #calendar_frame, #info_frame {
                 background-color: #2b2b2b;
@@ -122,7 +121,7 @@ class StorePage(QWidget):
         layout.setContentsMargins(30, 20, 30, 20)
         layout.setSpacing(15)
         
-        # --- HEADER ROW (Title & Storage) ---
+        # --- HEADER ROW (Title) ---
         header_layout = QHBoxLayout()
         title_layout = QVBoxLayout()
         lbl_store = QLabel("STORE")
@@ -139,24 +138,6 @@ class StorePage(QWidget):
         title_layout.addWidget(lbl_desc)
         header_layout.addLayout(title_layout)
         header_layout.addStretch()
-        
-        # Khung hiển thị dung lượng ổ cứng
-        storage_frame = QFrame()
-        storage_frame.setObjectName("storage_frame")
-        storage_layout = QVBoxLayout(storage_frame)
-        
-        self.lbl_storage = QLabel("Storage: Đang tính...\nfree")
-        self.lbl_storage.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_storage.setStyleSheet("color: white; font-weight: bold; font-size: 13px; background: transparent;")
-        
-        self.progress_storage = QProgressBar()
-        self.progress_storage.setTextVisible(False)
-        self.progress_storage.setFixedHeight(10)
-        self.progress_storage.setObjectName("storage_progress")
-        
-        storage_layout.addWidget(self.lbl_storage)
-        storage_layout.addWidget(self.progress_storage)
-        header_layout.addWidget(storage_frame)
         
         layout.addLayout(header_layout)
         
@@ -200,8 +181,8 @@ class StorePage(QWidget):
         lbl_info_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #ff4d4d; letter-spacing: 1px; background: transparent;")
         
         lbl_info_content = QLabel(
-            "• Welcome to offical launcher of Vangrok!\n"
-            "• ⚠Attention: Please always update the lastest to have the best experience!.\n"
+            "• Welcome to official launcher of Vangrok!\n"
+            "• ⚠ Attention: Please always update the latest version to have the best experience!\n"
         )
         lbl_info_content.setStyleSheet("font-size: 14px; color: #dddddd; line-height: 1.6; background: transparent;")
         lbl_info_content.setWordWrap(True)
@@ -211,8 +192,9 @@ class StorePage(QWidget):
         info_frame_layout.addWidget(lbl_info_content)
         info_frame_layout.addStretch()
         
-        # -- HIỂN THỊ VERSION LAUNCHER --
-        lbl_version = QLabel("Vangrok Launcher v1.0.0")
+        # -- HIỂN THỊ VERSION LAUNCHER TỪ JSON --
+        version_text = self.get_launcher_version()
+        lbl_version = QLabel(version_text)
         lbl_version.setAlignment(Qt.AlignmentFlag.AlignRight)
         lbl_version.setStyleSheet("color: #666666; font-size: 12px; font-style: italic; background: transparent;")
         info_frame_layout.addWidget(lbl_version)
@@ -279,8 +261,9 @@ class StorePage(QWidget):
             
         self.cards_layout.addStretch()
 
-    def update_storage(self, drive_name, free_gb, total_gb, used_gb):
-        """Hàm công khai để MainWindow có thể gọi và cập nhật thông số ổ đĩa"""
-        self.lbl_storage.setText(f"Drive {drive_name}\n{free_gb} GB free")
-        self.progress_storage.setMaximum(total_gb)
-        self.progress_storage.setValue(used_gb)
+    def update_storage(self, *args, **kwargs):
+        """
+        Hàm giữ lại để tương thích ngược. 
+        Tránh lỗi crash app (AttributeError) nếu MainWindow vẫn gọi cập nhật ổ đĩa.
+        """
+        pass

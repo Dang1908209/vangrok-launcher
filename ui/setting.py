@@ -7,9 +7,15 @@ from email.mime.text import MIMEText
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QFrame, QPushButton, QFileDialog, QMessageBox, 
-                             QInputDialog, QLineEdit)
+                             QInputDialog, QLineEdit, QComboBox)
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFontDatabase
+
+# Import thư viện dịch tự động
+try:
+    from deep_translator import GoogleTranslator
+except ImportError:
+    GoogleTranslator = None
 
 from core.game_manager import get_install_path, save_install_path, get_storage_info
 from core.auth import change_db_username
@@ -18,10 +24,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 USERS_DB_PATH = os.path.join(BASE_DIR, 'config', 'users.json')
 SESSION_PATH = os.path.join(BASE_DIR, 'config', 'session.json')
 
-# ================= LUỒNG CHẠY NGẦM GỬI EMAIL OTP BẰNG GMAIL APP =================
+
+# ================= LUỒNG CHẠY NGẦM GỬI EMAIL OTP =================
 class EmailSenderWorker(QThread):
-    """Worker chạy ngầm gửi email qua SMTP Google để tránh làm đứng/đơ giao diện UI"""
-    status_signal = pyqtSignal(bool, str, str)  # (Thành công/Thất bại, Thông báo, Mã OTP tạo ra)
+    status_signal = pyqtSignal(bool, str, str)
 
     def __init__(self, recipient_email, target_username):
         super().__init__()
@@ -30,30 +36,24 @@ class EmailSenderWorker(QThread):
 
     def run(self):
         try:
-            # Import cấu hình ứng dụng động từ file ui/token_config.py của bạn
             from ui.token_config import GOOGLE_APP_EMAIL, GOOGLE_APP_PASSWORD
         except ImportError:
             self.status_signal.emit(False, "Không tìm thấy cấu hình Google App API trong 'ui/token_config.py'!", "")
             return
 
-        # Tạo mã OTP ngẫu nhiên gồm 6 chữ số
         otp_code = str(random.randint(100000, 999999))
-        
         try:
-            # Thiết lập nội dung Email
             mail_content = (
                 f"Xin chào {self.target_username},\n\n"
                 f"Mã OTP để xác thực tài khoản Vangrok Launcher của bạn là: {otp_code}\n"
                 f"Vui lòng không chia sẻ mã này cho bất kỳ ai.\n\n"
                 f"Trân trọng,\nVangrok Game Launcher Support System."
             )
-            
             msg = MIMEText(mail_content, 'plain', 'utf-8')
             msg['Subject'] = "Vangrok Launcher - Xác thực tài khoản của bạn"
             msg['From'] = GOOGLE_APP_EMAIL
             msg['To'] = self.recipient_email
 
-            # Kết nối tới Server SMTP bảo mật của Google (Cổng 465 SSL)
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
                 server.login(GOOGLE_APP_EMAIL, GOOGLE_APP_PASSWORD)
                 server.sendmail(GOOGLE_APP_EMAIL, self.recipient_email, msg.as_string())
@@ -63,18 +63,54 @@ class EmailSenderWorker(QThread):
             self.status_signal.emit(False, f"Quá trình gửi mail thất bại: {str(e)}", "")
 
 
+# ================= LUỒNG CHẠY NGẦM TỰ ĐỘNG DỊCH GIAO DIỆN =================
+class TranslatorWorker(QThread):
+    """Worker chạy ngầm dịch tự động để không làm đơ giao diện Launcher"""
+    # Trả về một từ điển ánh xạ: {văn_bản_gốc: văn_bản_đã_dịch}
+    finished_signal = pyqtSignal(dict, str)
+
+    def __init__(self, text_list, target_lang):
+        super().__init__()
+        self.text_list = text_list
+        self.target_lang = target_lang
+
+    def run(self):
+        if not GoogleTranslator or self.target_lang == 'vi':
+            # Nếu không có thư viện hoặc chọn tiếng Việt thì trả về rỗng (dùng lại tiếng Việt gốc)
+            self.finished_signal.emit({}, self.target_lang)
+            return
+
+        translator = GoogleTranslator(source='auto', target=self.target_lang)
+        result_map = {}
+        
+        try:
+            # Dịch theo lô (batch) để tối ưu tốc độ mạng
+            translated_list = translator.translate_batch(self.text_list)
+            for orig, trans in zip(self.text_list, translated_list):
+                if trans:
+                    result_map[orig] = trans
+        except Exception as e:
+            print(f"Lỗi dịch tự động: {e}")
+            
+        self.finished_signal.emit(result_map, self.target_lang)
+
+
 # ================= GIAO DIỆN TRANG CÀI ĐẶT CHÍNH =================
 class SettingsPage(QWidget):
     path_changed_signal = pyqtSignal()
     username_changed_signal = pyqtSignal(str)
+    # Phát tín hiệu ra MainWindow nếu muốn dịch toàn bộ App (Sidebar, Trang chủ,...)
+    language_changed_signal = pyqtSignal(str) 
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_username = ""
         self.user_email = ""
         self.is_verified = False
-        self.generated_otp = ""  # Lưu tạm mã OTP khi gửi thành công
+        self.generated_otp = ""
         self.email_worker = None
+        self.translator_worker = None
+        self.current_lang = "vi"
         
         self.setObjectName("SettingsPage")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -82,8 +118,6 @@ class SettingsPage(QWidget):
         self.load_fonts()
         self.setup_ui()
         self.update_storage_ui()
-        
-        # [NÂNG CẤP]: Tự động tải dữ liệu tài khoản ngay khi khởi tạo widget
         self.load_account_data()
 
     def load_fonts(self):
@@ -96,9 +130,7 @@ class SettingsPage(QWidget):
 
     def setup_ui(self):
         self.setStyleSheet("""
-            QWidget { 
-                font-family: 'Montenegrin Gothic One', 'Orbitron', sans-serif; 
-            }
+            QWidget { font-family: 'Montenegrin Gothic One', 'Orbitron', sans-serif; }
             QWidget#SettingsPage {
                 background: qlineargradient(
                     x1: 0, y1: 0, x2: 0, y2: 1,
@@ -106,6 +138,12 @@ class SettingsPage(QWidget):
                 );
             }
             QLabel { background: transparent; }
+            QComboBox {
+                background-color: #333333; color: white; border: 1px solid #555555;
+                border-radius: 5px; padding: 5px 10px; font-size: 14px; font-weight: bold;
+            }
+            QComboBox::drop-down { border: none; }
+            QComboBox QAbstractItemView { background-color: #2b2b2b; color: white; selection-background-color: #ff4d4d; }
         """)
         
         layout = QVBoxLayout(self)
@@ -121,7 +159,7 @@ class SettingsPage(QWidget):
         layout.addWidget(line)
         
         # ==================================================
-        # PHẦN 1: THÔNG TIN TÀI KHOẢN (ĐÃ NÂNG CẤP VERIFY)
+        # PHẦN 1: THÔNG TIN TÀI KHOẢN
         # ==================================================
         lbl_sec_account = QLabel("👤 TÀI KHOẢN")
         lbl_sec_account.setStyleSheet("color: #ff4d4d; font-size: 16px; font-weight: bold; margin-top: 10px;")
@@ -131,9 +169,9 @@ class SettingsPage(QWidget):
         account_card.setStyleSheet("background-color: #2b2b2b; border-radius: 8px; padding: 15px; border: 1px solid #444;")
         account_layout = QVBoxLayout(account_card)
         
-        # Dòng 1: Tên hiển thị và Nút Đổi tên
         user_row = QHBoxLayout()
         self.lbl_current_user = QLabel("Tên hiển thị: Đang tải...")
+        self.lbl_current_user.setProperty("is_dynamic", True) # Không dịch text động
         self.lbl_current_user.setStyleSheet("color: white; font-size: 15px; font-weight: bold;")
         user_row.addWidget(self.lbl_current_user)
         user_row.addStretch()
@@ -148,20 +186,20 @@ class SettingsPage(QWidget):
         user_row.addWidget(btn_change_name)
         account_layout.addLayout(user_row)
         
-        # Đường kẻ nhỏ phân tách nội bộ thẻ tài khoản
         inner_line = QFrame()
         inner_line.setFrameShape(QFrame.Shape.HLine)
         inner_line.setStyleSheet("border: none; border-top: 1px solid #3d3d3d; margin: 8px 0px;")
         account_layout.addWidget(inner_line)
         
-        # Dòng 2: Trạng thái Verify Email
         verify_row = QHBoxLayout()
         self.lbl_verify_status = QLabel("Xác thực: Đang kiểm tra dữ liệu...")
+        self.lbl_verify_status.setProperty("is_dynamic", True) # Không dịch text động
         self.lbl_verify_status.setStyleSheet("color: white; font-size: 14px;")
         verify_row.addWidget(self.lbl_verify_status)
         verify_row.addStretch()
         
         self.btn_verify = QPushButton("Get Verified")
+        self.btn_verify.setProperty("is_dynamic", True) # Không dịch text nút trạng thái
         self.btn_verify.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_verify.setStyleSheet("""
             QPushButton { background-color: #ff4d4d; color: white; border-radius: 5px; padding: 6px 15px; font-size: 13px; font-weight: bold; }
@@ -187,6 +225,7 @@ class SettingsPage(QWidget):
         
         path_layout = QHBoxLayout()
         self.lbl_current_path_display = QLabel(f"Location: {get_install_path()}")
+        self.lbl_current_path_display.setProperty("is_dynamic", True) # Không dịch text động
         self.lbl_current_path_display.setStyleSheet("color: white; font-size: 15px; font-weight: bold;")
         path_layout.addWidget(self.lbl_current_path_display)
         path_layout.addStretch()
@@ -212,13 +251,49 @@ class SettingsPage(QWidget):
         folder_layout.addLayout(path_layout)
         
         self.lbl_setting_storage_detail = QLabel("Ổ đĩa: Đang tính...")
+        self.lbl_setting_storage_detail.setProperty("is_dynamic", True) # Không dịch text động
         self.lbl_setting_storage_detail.setStyleSheet("color: #aaaaaa; font-size: 13px; margin-top: 5px;")
         folder_layout.addWidget(self.lbl_setting_storage_detail)
         
         layout.addWidget(folder_card)
+
+        # ==================================================
+        # PHẦN 3: NGÔN NGỮ & GIAO DIỆN
+        # ==================================================
+        lbl_sec_lang = QLabel("🌐 NGÔN NGỮ GIAO DIỆN / LANGUAGE (AUTO-TRANSLATE)")
+        lbl_sec_lang.setStyleSheet("color: #ff4d4d; font-size: 16px; font-weight: bold; margin-top: 25px;")
+        layout.addWidget(lbl_sec_lang)
+        
+        lang_card = QFrame()
+        lang_card.setStyleSheet("background-color: #2b2b2b; border-radius: 8px; padding: 15px; border: 1px solid #444;")
+        lang_layout = QHBoxLayout(lang_card)
+        
+        lbl_lang_desc = QLabel("Chọn ngôn ngữ hiển thị (Hệ thống sẽ tự động dịch Realtime không cần file từ điển):")
+        lbl_lang_desc.setStyleSheet("color: #dddddd; font-size: 14px;")
+        lang_layout.addWidget(lbl_lang_desc)
+        lang_layout.addStretch()
+        
+        # Nút Dropdown chọn Ngôn Ngữ
+        self.cbx_language = QComboBox()
+        self.cbx_language.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cbx_language.addItems([
+            "🇻🇳 Tiếng Việt (Mặc định)", 
+            "🇺🇸 English (Tiếng Anh)", 
+            "🇯🇵 日本語 (Tiếng Nhật)", 
+            "🇨🇳 中文 (Tiếng Trung)", 
+            "🇰🇷 한국어 (Tiếng Hàn)",
+            "🇷🇺 Русский (Tiếng Nga)"
+        ])
+        
+        # Ánh xạ từ index sang mã ngôn ngữ ISO của Google Translate
+        self.lang_codes = ["vi", "en", "ja", "zh-CN", "ko", "ru"]
+        self.cbx_language.currentIndexChanged.connect(self.on_language_changed)
+        lang_layout.addWidget(self.cbx_language)
+        
+        layout.addWidget(lang_card)
         
         # ==================================================
-        # PHẦN 3: TÙY CHỌN KHÁC
+        # PHẦN 4: TÙY CHỌN KHÁC
         # ==================================================
         lbl_sec2 = QLabel("🚀 TÙY CHỌN KHÁC (SẮP RA MẮT)")
         lbl_sec2.setStyleSheet("color: #ff4d4d; font-size: 16px; font-weight: bold; margin-top: 25px;")
@@ -234,17 +309,71 @@ class SettingsPage(QWidget):
         
         layout.addStretch()
 
-    # --- CÁC HÀM XỬ LÝ LOGIC ---
+    # ================= CÁC HÀM XỬ LÝ DỊCH TỰ ĐỘNG =================
+    def on_language_changed(self, index):
+        """Kích hoạt khi người dùng thay đổi lựa chọn trong ComboBox Ngôn Ngữ"""
+        target_lang = self.lang_codes[index]
+        if target_lang == self.current_lang:
+            return
+            
+        self.current_lang = target_lang
+        
+        # Phát tín hiệu ra MainWindow để MainWindow biết đường tự dịch toàn app
+        self.language_changed_signal.emit(target_lang)
+        self.cbx_language.setEnabled(False) # Khóa nút tạm thời lúc đang dịch
+        
+        # Thu thập toàn bộ văn bản gốc trong trang cần dịch
+        texts_to_translate = []
+        for widget in self.findChildren((QLabel, QPushButton)):
+            # Bỏ qua nút ComboBox và các ký tự đặc biệt không cần dịch
+            if widget == self.cbx_language or not hasattr(widget, 'text') or not widget.text().strip():
+                continue
+                
+            # Bỏ qua các text thay đổi động
+            if widget.property("is_dynamic"):
+                continue
+                
+            # Luôn lấy văn bản gốc tiếng Việt đã lưu, nếu chưa có thì lưu lại ngay
+            orig_text = widget.property("orig_text")
+            if not orig_text:
+                orig_text = widget.text().strip()
+                widget.setProperty("orig_text", orig_text)
+                
+            if orig_text not in texts_to_translate:
+                texts_to_translate.append(orig_text)
+                
+        # Khởi chạy luồng ngầm dịch tự động
+        self.translator_worker = TranslatorWorker(texts_to_translate, target_lang)
+        self.translator_worker.finished_signal.connect(self.apply_translation)
+        self.translator_worker.start()
 
+    def apply_translation(self, translated_map, target_lang):
+        """Cập nhật giao diện Settings sau khi luồng dịch hoàn tất"""
+        for widget in self.findChildren((QLabel, QPushButton)):
+            if widget == self.cbx_language:
+                continue
+
+            orig_text = widget.property("orig_text")
+            if orig_text:
+                if target_lang == 'vi':
+                    widget.setText(orig_text)
+                elif orig_text in translated_map:
+                    widget.setText(translated_map[orig_text])
+
+        # Mở khóa lại ComboBox sau khi áp dụng xong
+        self.cbx_language.setEnabled(True)
+
+        # Cảnh báo nếu dịch thất bại do thiếu thư viện (chỉ cảnh báo 1 lần)
+        if not translated_map and target_lang != 'vi':
+            QMessageBox.warning(self, "Thiếu Thư Viện", "Bạn cần chạy lệnh:\npip install deep-translator\nđể bật tính năng dịch tự động Google Translate!")
+
+    # ================= CÁC HÀM XỬ LÝ DỮ LIỆU & GIAO DIỆN =================
     def showEvent(self, event):
-        """[NÂNG CẤP]: Mỗi khi chuyển sang tab Setting là tự động làm mới dữ liệu"""
         super().showEvent(event)
         self.load_account_data()
         self.update_storage_ui()
 
     def load_account_data(self):
-        """[NÂNG CẤP]: Tự đọc session.json và users.json để không bị phụ thuộc luồng bên ngoài"""
-        # Bước 1: Đọc session để biết ai đang đăng nhập
         if os.path.exists(SESSION_PATH):
             try:
                 with open(SESSION_PATH, 'r', encoding='utf-8') as f:
@@ -254,7 +383,6 @@ class SettingsPage(QWidget):
             except Exception as e:
                 print(f"Lỗi đọc session.json: {e}")
 
-        # Bước 2: Đọc users.json để lấy email và xác nhận lại trạng thái verify
         if self.current_username and os.path.exists(USERS_DB_PATH):
             try:
                 with open(USERS_DB_PATH, 'r', encoding='utf-8') as f:
@@ -265,7 +393,6 @@ class SettingsPage(QWidget):
             except Exception as e:
                 print(f"Lỗi đọc users.json: {e}")
 
-        # Bước 3: Cập nhật UI
         if self.current_username:
             self.lbl_current_user.setText(f"Tên hiển thị: {self.current_username}")
             self.refresh_verify_ui()
@@ -276,12 +403,10 @@ class SettingsPage(QWidget):
             self.btn_verify.setVisible(False)
 
     def set_current_username(self, username):
-        """Được gọi từ MainWindow để đồng bộ hóa thông tin"""
         self.current_username = username
         self.load_account_data()
 
     def refresh_verify_ui(self):
-        """Cập nhật giao diện dựa theo trạng thái xác thực thực tế"""
         if self.is_verified:
             self.lbl_verify_status.setText(f"Email: {self.user_email} | Verified ✅")
             self.lbl_verify_status.setStyleSheet("color: #2ecc71; font-size: 14px; font-weight: bold;")
@@ -296,7 +421,6 @@ class SettingsPage(QWidget):
             self.btn_verify.setVisible(True)
 
     def send_verification_otp(self):
-        """Bắt đầu kích hoạt luồng gửi mail OTP"""
         if not self.user_email or self.user_email == "Không có email":
             QMessageBox.warning(self, "Lỗi", "Không tìm thấy Email tương thích với tài khoản này hệ thống.")
             return
@@ -304,18 +428,15 @@ class SettingsPage(QWidget):
         self.btn_verify.setEnabled(False)
         self.btn_verify.setText("⏳ Đang gửi OTP...")
         
-        # Khởi chạy luồng gửi ngầm
         self.email_worker = EmailSenderWorker(self.user_email, self.current_username)
         self.email_worker.status_signal.connect(self.on_otp_sent_result)
         self.email_worker.start()
 
     def on_otp_sent_result(self, success, message, otp_code):
-        """Đón nhận kết quả xử lý từ Thread gửi thư"""
         if success:
             self.generated_otp = otp_code
             QMessageBox.information(self, "Thành Công", message)
             
-            # Mở hộp thoại Input bắt người dùng điền mã OTP để đối chiếu
             otp_input, ok = QInputDialog.getText(
                 self, "Xác thực mã OTP", 
                 f"Một mã xác nhận gồm 6 số đã được gửi tới: {self.user_email}\n\nHãy nhập mã OTP vào đây:", 
@@ -335,9 +456,7 @@ class SettingsPage(QWidget):
             self.refresh_verify_ui()
 
     def mark_user_as_verified(self):
-        """Lưu trạng thái đã xác thực thành công vào Database và Session hiện tại"""
         try:
-            # 1. Ghi đè trạng thái True vào users.json
             if os.path.exists(USERS_DB_PATH):
                 with open(USERS_DB_PATH, 'r', encoding='utf-8') as f:
                     users = json.load(f)
@@ -346,7 +465,6 @@ class SettingsPage(QWidget):
                     with open(USERS_DB_PATH, 'w', encoding='utf-8') as f:
                         json.dump(users, f, indent=4)
             
-            # 2. Cập nhật lại session.json để lần sau mở máy không bị mất quyền lợi
             if os.path.exists(SESSION_PATH):
                 with open(SESSION_PATH, 'r', encoding='utf-8') as f:
                     session = json.load(f)

@@ -1,12 +1,7 @@
 {
-    "Bi": {
+    "trandangconcho": {
         "email": "trandangconcho@gmail.com",
-        "password": "82e967c2f046354a620c9b3590088b820bb19d6e291968816e1f35d9785c6ad3",
-        "is_verified": true
-    },
-    "tand6381": {
-        "email": "tand6381@gmail.com",
         "password": "709ada6c3c69bbfdde475d8a6f810a8b4a65a14d02d1daf88a07c37b361f15ae",
-        "is_verified": true
+        "is_verified": false
     }
 }
