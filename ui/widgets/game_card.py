@@ -216,7 +216,26 @@ class GameCard(QFrame):
         
         layout.addStretch()
         
-        # 3. KÍCH THƯỚC FILE
+        # 3. KÍCH THƯỚC FILE & THÔNG TIN DEV (Đã thêm khởi tạo info_layout)
+        info_layout = QHBoxLayout()
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Ô nhỏ chứa tên Dev ở góc trái
+        dev_name = self.game_data.get("developer", "Unknown Dev")
+        self.lbl_dev = QLabel(f" {dev_name} ")
+        self.lbl_dev.setStyleSheet("""
+            background-color: #3b3b3b; 
+            color: #e0e0e0; 
+            font-size: 12px; 
+            font-weight: bold; 
+            border-radius: 4px; 
+            padding: 3px 6px;
+        """)
+        info_layout.addWidget(self.lbl_dev, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        
+        info_layout.addStretch() # Đẩy dung lượng sang góc phải
+        
+        # Kích thước file ở góc phải
         size_str = self.get_display_size()
         self.lbl_size = QLabel(size_str)
         self.lbl_size.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)

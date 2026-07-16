@@ -1,12 +1,14 @@
 import json
 import os
 import subprocess
-from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtCore import QPoint, Qt, QDateTime
 from PyQt6.QtGui import QAction, QFontDatabase, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -14,6 +16,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -37,6 +40,30 @@ from ui.widgets.game_card import GameCard
 from ui.dev_stats import DevStatsPage
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# --- HỆ THỐNG QUẢN LÝ CHỈ SỐ THƯ VIỆN GAME THỦ ---
+STATS_FILE = os.path.join(BASE_DIR, "config", "library_stats.json")
+
+
+def load_library_stats():
+    """Tải thông số giờ chơi và yêu thích từ file JSON cục bộ"""
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def save_library_stats(stats):
+    """Lưu thông số giờ chơi và yêu thích"""
+    os.makedirs(os.path.dirname(STATS_FILE), exist_ok=True)
+    try:
+        with open(STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(stats, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"[ERROR] Không thể lưu stats: {e}")
 
 
 class MainWindow(QMainWindow):
@@ -132,6 +159,23 @@ class MainWindow(QMainWindow):
             self.apply_global_translation
         )
         self.translator_worker.start()
+
+    def on_dev_stats_clicked(self):
+        """Xử lý khi click vào nút Thống kê Dev: Cập nhật data mới và chuyển trang"""
+        # Cập nhật danh sách game mới nhất trước khi vẽ bảng
+        self.dev_stats_page.update_data(self.games_data)
+        self.content_area.setCurrentIndex(4)
+
+    def refresh_dev_stats_data(self):
+        """Xử lý sự kiện khi Dev bấm nút REFRESH ngay trong trang Stats"""
+        # Gọi hàm nạp/tải lại danh sách game từ Server/GitHub của bạn
+        if hasattr(self, "load_games_data"):
+            self.load_games_data()
+        elif hasattr(self, "reload_database"):
+            self.reload_database()
+            
+        # Đẩy dữ liệu sau khi làm mới sang trang thống kê
+        self.dev_stats_page.update_data(self.games_data)
 
     def apply_global_translation(self, translated_map, target_lang):
         """Áp dụng chuỗi đã dịch lên toàn bộ widget"""
@@ -281,7 +325,7 @@ class MainWindow(QMainWindow):
         self.sidebar_layout.addWidget(self.btn_library)
 
         # --- NÚT NEWS ---
-        self.btn_news = self.create_nav_button("NEWS")
+        self.btn_news = self.create_nav_button("📢 NEWS")
         self.btn_news.clicked.connect(self.show_news)
         self.sidebar_layout.addWidget(self.btn_news)
 
@@ -316,7 +360,7 @@ class MainWindow(QMainWindow):
         top_layout.setContentsMargins(20, 0, 10, 0)
         top_layout.addStretch()
 
-        # --- NÚT CẬP NHẬT LAUNCHER (Được chuyển vào Layout để không bị lệch) ---
+        # --- NÚT CẬP NHẬT LAUNCHER ---
         self.btn_update_launcher = QPushButton("Cập nhật Launcher!", self)
         self.btn_update_launcher.setProperty("is_dynamic", True)
         self.btn_update_launcher.setStyleSheet(
@@ -332,6 +376,13 @@ class MainWindow(QMainWindow):
         self.btn_add_game.setVisible(self.is_admin or self.is_verified)
         top_layout.addWidget(self.btn_add_game)
         self.btn_add_game.clicked.connect(self.open_add_game_dialog)
+
+        # --- [MỚI] NÚT THỐNG KÊ DEVELOPER (ADMIN/VERIFIED) ---
+        self.btn_dev_stats = QPushButton("📊 Thống kê Dev")
+        self.btn_dev_stats.setObjectName("btn_admin")
+        self.btn_dev_stats.setVisible(self.is_admin or self.is_verified)
+        top_layout.addWidget(self.btn_dev_stats)
+        self.btn_dev_stats.clicked.connect(self.on_dev_stats_clicked)
 
         # --- NÚT USER MENU ---
         self.btn_user = QPushButton(f"👤 {self.username.upper()} ▼")
@@ -408,7 +459,7 @@ class MainWindow(QMainWindow):
 
         # --- [MỚI] TRANG THỐNG KÊ DEVELOPER (Index 4) ---
         self.dev_stats_page = DevStatsPage(self.games_data, self)
-        #self.dev_stats_page.refresh_requested.connect(self.refresh_dev_stats_data)
+        self.dev_stats_page.refresh_requested.connect(self.refresh_dev_stats_data)
         self.content_area.addWidget(self.dev_stats_page)  # Index 4: Dev Stats
 
         right_layout.addWidget(self.content_area)
@@ -525,52 +576,306 @@ class MainWindow(QMainWindow):
         self.set_active_nav(btn_clicked)
         self.show_game_detail(game_data)
 
+# =====================================================================
+    # NÂNG CẤP BUILD_LIBRARY_PAGE - CHUẨN GIAO DIỆN STEAM DARK x VANGROK
+    # =====================================================================
     def build_library_page(self):
         self.library_page = QWidget()
+        self.library_page.setObjectName("LibraryPage")
+        self.library_page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        
+        # CSS chuẩn Steam Dark pha chất Red Vangrok
+        self.library_page.setStyleSheet("""
+            #LibraryPage {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0.0 #1b2838,
+                    stop: 0.4 #171a21,
+                    stop: 1.0 #12141a
+                );
+            }
+            
+            /* Tiêu đề mục kệ game kiểu Steam */
+            .ShelfHeader {
+                color: #8f98a0;
+                font-size: 14px;
+                font-weight: bold;
+                letter-spacing: 1.5px;
+            }
+            
+            /* Thanh tìm kiếm */
+            #lib_search_bar {
+                background-color: #25282e;
+                border: 1px solid #3c404b;
+                border-radius: 6px;
+                padding: 6px 15px;
+                color: #ffffff;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            #lib_search_bar:focus {
+                border: 1px solid #ff4d4d;
+                background-color: #2c3038;
+            }
+            
+            /* ComboBox bộ lọc */
+            QComboBox {
+                background-color: #25282e;
+                border: 1px solid #3c404b;
+                border-radius: 6px;
+                padding: 5px 15px;
+                color: #ffffff;
+                font-size: 13px;
+                font-weight: bold;
+                min-width: 140px;
+            }
+            QComboBox:hover {
+                background-color: #2c3038;
+                border: 1px solid #ff4d4d;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #171a21;
+                color: #ffffff;
+                border: 1px solid #ff4d4d;
+                selection-background-color: #ff4d4d;
+                selection-color: #ffffff;
+            }
+            
+            /* ScrollArea trơn mượt */
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #12141a;
+                width: 10px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #3c404b;
+                min-height: 30px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #ff4d4d;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                background: none;
+                border: none;
+            }
+        """)
+
         self.library_layout = QVBoxLayout(self.library_page)
-        self.library_layout.setContentsMargins(30, 20, 30, 20)
+        self.library_layout.setContentsMargins(30, 25, 30, 20)
+        self.library_layout.setSpacing(20)
 
+        # --- HEADER THƯ VIỆN ---
+        header_layout = QHBoxLayout()
         lbl_title = QLabel("MY LIBRARY")
-        lbl_title.setStyleSheet(
-            "font-size: 40px; font-weight: bold; color: white; letter-spacing: 1px;"
-        )
-        self.library_layout.addWidget(lbl_title)
+        lbl_title.setStyleSheet("font-size: 32px; font-weight: 900; color: #ffffff; letter-spacing: 2px; background: transparent;")
+        header_layout.addWidget(lbl_title)
+        header_layout.addStretch()
+        self.library_layout.addLayout(header_layout)
 
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("border-top: 2px solid #ff4d4d; margin-bottom: 20px;")
-        self.library_layout.addWidget(line)
+        # --- THANH CÔNG CỤ ĐIỀU KHIỂN (CONTROL BAR) ---
+        control_bar = QFrame()
+        control_bar.setStyleSheet("background-color: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 5px;")
+        control_layout = QHBoxLayout(control_bar)
+        control_layout.setContentsMargins(10, 8, 10, 8)
+        control_layout.setSpacing(15)
 
-        self.library_grid_layout = QHBoxLayout()
-        self.library_grid_layout.setSpacing(20)
-        self.library_layout.addLayout(self.library_grid_layout)
-        self.library_layout.addStretch()
+        lbl_filter_icon = QLabel("⚡ FILTER BY:")
+        lbl_filter_icon.setStyleSheet("color: #ff4d4d; font-weight: bold; font-size: 12px; letter-spacing: 1px; background: transparent;")
+        control_layout.addWidget(lbl_filter_icon)
+
+        self.lib_filter_cb = QComboBox()
+        self.lib_filter_cb.addItems(["Tất cả game", "Đã cài đặt", "Yêu thích ⭐"])
+        self.lib_filter_cb.currentIndexChanged.connect(lambda: self.refresh_library_page())
+        control_layout.addWidget(self.lib_filter_cb)
+
+        self.lib_sort_cb = QComboBox()
+        self.lib_sort_cb.addItems(["Sắp xếp: Tên A-Z", "Giờ chơi nhiều nhất", "Chơi gần đây"])
+        self.lib_sort_cb.currentIndexChanged.connect(lambda: self.refresh_library_page())
+        control_layout.addWidget(self.lib_sort_cb)
+
+        control_layout.addStretch()
+
+        self.lib_search_bar = QLineEdit()
+        self.lib_search_bar.setPlaceholderText("🔍 Tìm trong thư viện...")
+        self.lib_search_bar.setFixedWidth(250)
+        self.lib_search_bar.setObjectName("lib_search_bar")
+        self.lib_search_bar.textChanged.connect(lambda: self.refresh_library_page())
+        control_layout.addWidget(self.lib_search_bar)
+
+        self.library_layout.addWidget(control_bar)
+
+        # --- VÙNG HIỂN THỊ KỆ GAME (SHELVES SCROLL AREA) ---
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        
+        self.shelves_container = QWidget()
+        self.shelves_container.setStyleSheet("background: transparent;")
+        
+        # Bố cục dọc chính để chứa các "Kệ" (Shelves) như Steam
+        self.shelves_layout = QVBoxLayout(self.shelves_container)
+        self.shelves_layout.setContentsMargins(0, 10, 0, 20)
+        self.shelves_layout.setSpacing(30)
+        self.shelves_layout.setAlignment(Qt.AlignmentFlag.AlignTop) # Khóa dính phía trên cùng
+        
+        self.scroll_area.setWidget(self.shelves_container)
+        self.library_layout.addWidget(self.scroll_area)
 
         self.content_area.addWidget(self.library_page)
 
+    # =====================================================================
+    # NÂNG CẤP REFRESH_LIBRARY_PAGE - HỆ THỐNG KỆ (STEAM SHELVES)
+    # =====================================================================
     def refresh_library_page(self):
-        while self.library_grid_layout.count():
-            item = self.library_grid_layout.takeAt(0)
+        # Dọn dẹp sạch sẽ các kệ game cũ
+        while self.shelves_layout.count():
+            item = self.shelves_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+            elif item.layout():
+                while item.layout().count():
+                    sub_item = item.layout().takeAt(0)
+                    if sub_item.widget():
+                        sub_item.widget().deleteLater()
 
-        installed_games = self.get_installed_games()
+        installed_games = self.get_installed_games() or []
+        stats = load_library_stats()
 
-        if not installed_games:
-            lbl_empty_lib = QLabel(
-                "Bạn chưa tải trò chơi nào.\nHãy sang mục Store để khám phá và cài đặt game"
-            )
-            lbl_empty_lib.setStyleSheet(
-                "color: #aaaaaa; font-size: 18px; line-height: 1.5;"
-            )
-            lbl_empty_lib.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.library_grid_layout.addWidget(lbl_empty_lib)
-        else:
-            for game in installed_games:
-                card = GameCard(game)
+        # Tạo thông số khởi tạo an toàn (Đã fix hoàn toàn lỗi TypeError float)
+        is_dirty = False
+        for game in installed_games:
+            game_id = str(game.get("id", game.get("name")))
+            if game_id not in stats:
+                try:
+                    num_id = int(game.get("id", 1))
+                except (ValueError, TypeError):
+                    num_id = abs(hash(game_id)) % 50 + 1
+
+                stats[game_id] = {
+                    "playtime_hours": round(num_id * 4.2 + 2.5, 1),
+                    "last_played": QDateTime.currentDateTime().addDays(-int(num_id % 30)).toString("dd/MM/yyyy HH:mm"),
+                    "is_favorite": False
+                }
+                is_dirty = True
+        if is_dirty:
+            save_library_stats(stats)
+
+        search_query = self.lib_search_bar.text().lower().strip()
+        filter_mode = self.lib_filter_cb.currentText()
+        sort_mode = self.lib_sort_cb.currentText()
+
+        # Lọc danh sách game
+        filtered_library = []
+        for game in installed_games:
+            game_id = str(game.get("id", game.get("name")))
+            game_stats = stats.get(game_id, {"playtime_hours": 0.0, "last_played": "Chưa chơi", "is_favorite": False})
+            
+            if search_query and search_query not in game.get("name", "").lower():
+                continue
+            if filter_mode == "Yêu thích ⭐" and not game_stats.get("is_favorite", False):
+                continue
+
+            filtered_library.append((game, game_stats))
+
+        # Sắp xếp danh sách game
+        if sort_mode == "Sắp xếp: Tên A-Z":
+            filtered_library.sort(key=lambda x: x[0].get("name", "").lower())
+        elif sort_mode == "Giờ chơi nhiều nhất":
+            filtered_library.sort(key=lambda x: x[1].get("playtime_hours", 0.0), reverse=True)
+        elif sort_mode == "Chơi gần đây":
+            filtered_library.sort(key=lambda x: x[1].get("last_played", ""), reverse=True)
+
+        # TRƯỜNG HỢP KHÔNG CÓ GAME: Hiển thị Empty State sang trọng
+        if not filtered_library:
+            empty_widget = QWidget()
+            empty_layout = QVBoxLayout(empty_widget)
+            empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_layout.addSpacing(50)
+            
+            lbl_empty = QLabel("🚫 KHÔNG TÌM THẤY TRÒ CHƠI NÀO TRONG THƯ VIỆN")
+            lbl_empty.setStyleSheet("color: #67707b; font-size: 18px; font-weight: bold; letter-spacing: 1px;")
+            lbl_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            
+            lbl_sub = QLabel("Hãy khám phá Cửa hàng Vangrok và tải xuống những tựa game tuyệt đỉnh ngay hôm nay!")
+            lbl_sub.setStyleSheet("color: #484f58; font-size: 14px; margin-top: 5px;")
+            lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            
+            empty_layout.addWidget(lbl_empty)
+            empty_layout.addWidget(lbl_sub)
+            self.shelves_layout.addWidget(empty_widget)
+            return
+
+        # ================= HÀM HỖ TRỢ VẼ KỆ GAME (SHELF BUILDER) =================
+        def add_steam_shelf(title_text, games_list):
+            if not games_list:
+                return
+
+            shelf_widget = QWidget()
+            shelf_layout = QVBoxLayout(shelf_widget)
+            shelf_layout.setContentsMargins(0, 0, 0, 0)
+            shelf_layout.setSpacing(12)
+
+            # Tiêu đề Kệ (Header + đường kẻ ngang Steam)
+            header_box = QHBoxLayout()
+            lbl_shelf_title = QLabel(f"{title_text} ({len(games_list)})")
+            lbl_shelf_title.setProperty("class", "ShelfHeader")
+            lbl_shelf_title.setStyleSheet("color: #67c1f5; font-size: 13px; font-weight: bold; letter-spacing: 1.5px;")
+            header_box.addWidget(lbl_shelf_title)
+            
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setStyleSheet("border-top: 1px solid #283341; margin-top: 2px;")
+            header_box.addWidget(line, 1) # Đường kẻ tự động kéo dài hết chiều ngang
+            
+            shelf_layout.addLayout(header_box)
+
+            # Lưới Game (Grid)
+            grid_widget = QWidget()
+            grid = QGridLayout(grid_widget)
+            grid.setSpacing(20)
+            grid.setContentsMargins(0, 5, 0, 5)
+            # Khóa góc trên trái: Thẻ game sẽ không bị văng ra giữa màn hình
+            grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+
+            max_columns = 4 # 4 game trên 1 hàng chuẩn desktop
+            for idx, (g_data, g_info) in enumerate(games_list):
+                row = idx // max_columns
+                col = idx % max_columns
+                
+                card = GameCard(g_data)
                 card.card_clicked.connect(self.show_game_detail)
-                self.library_grid_layout.addWidget(card)
-            self.library_grid_layout.addStretch()
+                
+                playtime_text = f"⏱️ {g_info.get('playtime_hours', 0)} hrs"
+                card.setToolTip(f"🎮 {g_data.get('name')}\n{playtime_text}\nLần chơi cuối: {g_info.get('last_played')}")
+                
+                grid.addWidget(card, row, col)
+
+            # Đẩy nhẹ cột cuối cùng bên phải để gom các game gọn gàng về bên trái
+            grid.setColumnStretch(max_columns, 1)
+
+            shelf_layout.addWidget(grid_widget)
+            self.shelves_layout.addWidget(shelf_widget)
+
+        # --- PHÂN LẠI KỆ GAME CHUẨN STEAM ---
+        favorites_list = [item for item in filtered_library if item[1].get("is_favorite", False)]
+        regular_list = [item for item in filtered_library if not item[1].get("is_favorite", False)]
+
+        # Nếu đang ở chế độ lọc Tất Cả, hiển thị riêng Kệ Yêu Thích lên trên cùng (nếu có)
+        if filter_mode == "Tất cả game" and favorites_list:
+            add_steam_shelf("⭐ FAVORITES", favorites_list)
+            add_steam_shelf("🎮 ALL GAMES", regular_list)
+        else:
+            # Nếu đang lọc riêng hoặc không có game yêu thích thì hiển thị 1 kệ chung
+            title = "⭐ FAVORITE GAMES" if filter_mode == "Yêu thích ⭐" else "🎮 GAMES"
+            add_steam_shelf(title, filtered_library)
+
+        # Thêm lò xo dưới đáy để luôn đẩy toàn bộ kệ game lên sát bên trên
+        self.shelves_layout.addStretch()
 
     def show_game_detail(self, game_data):
         self.detail_page.set_game_data(game_data)

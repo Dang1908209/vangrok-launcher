@@ -16,5 +16,23 @@
         "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/toad_mountain_cover.png",
         "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_toad_mountain_1_0_0/toad_mountain.zip",
         "size": 35.1
+    },
+    {
+        "id": "sticky_cats",
+        "name": "Sticky Cats",
+        "developer": "Jem Smith-Jason Sutherland",
+        "version": "1.0.0",
+        "description": "Sticky Cats is a 2 - 4 player party game, where players must steal the fish and escape out the window while sticking to everything and causing mayhem along the way.\nGamepad Controls:\n\nStart/triangle button: Join game\nJoystick: Move/aim for jumping\nA or X button : Jump\nBack button: Restart level\nKeyboard Controls:\nEnter: Join game\nWASD/Arrow keys: Move/aim for jumping\nSpace: Jump\nR: Restart level\nCredits:\nJem Smith - Design and code\n@jemmiwinks\nJason Sutherland - Design, art, and audio\n@DriftPrism\nFollow @stickycatsgame on Twitter\nPlease get in touch if you have any feedback, issues, or questions, and we’ll try and help.\nThanks for playing!\n\n\nStatus\nIn development\nPlatforms\nWindows, macOS\nRating\nRated 4.8 out of 5 stars\n\n(82total ratings)\nAuthor\nThe Bones Brothers\nGenre\nAction\nTags\n2D, Cats, Family Friendly, Funny, Local multiplayer, Multiplayer, party-game, Physics\nMultiplayer\nLocal multiplayer\nPlayer count\n1 - 4",
+        "video_url": "https://youtu.be/ohPWwpeXy3U?si=dwNtwrunmy8HW9Al",
+        "donate_url": "",
+        "socials": {
+            "facebook": "",
+            "discord": "",
+            "website": "https://twitter.com/stickycatsgame"
+        },
+        "exe_path": "Sticky Cats.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/sticky_cats_cover.png",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_sticky_cats_1_0_0/sticky_cats.zip",
+        "size": 31.32
     }
 ]
