@@ -1,0 +1,23 @@
+# Bỏ qua thư mục chứa game đã cài đặt
+installed_games/
+dist/
+build/
+_internal/
+
+# Bỏ qua các file nén tạm thời và file chạy
+*.zip
+*.rar
+*.exe
+
+# Bỏ qua cache của Python
+__pycache__/
+*.pyc
+
+# Bỏ qua config nhạy cảm
+token_config.py
+config/session.json
+config/client_secret.json
+
+# Bỏ qua các file thư viện nặng
+*.dll
+*.pak

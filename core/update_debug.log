@@ -1,0 +1,7 @@
+--- BẮT ĐẦU CHECK UPDATE ---
+Đường dẫn config local: F:\VangrokLauncher\core\config\config.json
+KHÔNG tìm thấy config local! Dùng bản mặc định: 1.0.0
+Đang gọi tới GitHub: https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/config/config.json?t=1784190130
+Phản hồi từ GitHub: Status Code 200
+Version trên GitHub: 1.0.1
+Phát hiện bản mới! 1.0.1 > 1.0.0

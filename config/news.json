@@ -1,0 +1,16 @@
+{
+  "updates": [
+    {
+      "launcher_version": "1.0.1",
+      "date": "15/07/2026",
+      "title": "Patch",
+      "content": "New Features:\n- (Patch Notes).\n\n Bug fixes:\n- Performance optimization."
+    },
+    {
+      "launcher_version": "1.0.0",
+      "date": "14/07/2026",
+      "title": "Launcher initialize",
+      "content": " Welcome to Vangrok Launcher!\n- Auto Game Dowload Support.\n- Simple Background."
+    }
+  ]
+}
