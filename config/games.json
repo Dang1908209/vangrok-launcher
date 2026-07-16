@@ -34,5 +34,23 @@
         "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/sticky_cats_cover.png",
         "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_sticky_cats_1_0_0/sticky_cats.zip",
         "size": 31.32
+    },
+    {
+        "id": "cursed_apartment",
+        "name": "Cursed Apartment",
+        "developer": "Horror Pond",
+        "version": "1.0.0",
+        "description": "Cursed Apartment is a multiplayer and single-player horror game where you need to be attentive to not overlook any anomalies on floors. Use the elevator to reach floor 1 and escape before monsters get you. When you miss an anomaly, elevator will glitch and take you back to the highest floor.\nSTORY: You wake up in your apartment. A mysterious voice from a recorder tells you that you are trapped in a cursed building infested with anomalies and monsters. You need to escape by reaching floor 1.\nPLAYTIME: 30 - 60 minutes\n\nGAME MODES\nChoose Exit 8 game mode - press up when there's anomaly, press down when no anomalies\n￼\nChoose Escape game mode - remove anomalies by capturing them with your camera\n￼\n\n\nDisclaimer: Game modes can only be chosen when creating online room. More content is available in steam version.\n\nFEATURES\nAnomalies\nDeadly monsters\nMultiplayer with proximity voice chat\nShort loop gameplay\nTranslated into multiple languages\nCONTROLS\nW A S D\nMovement\nMouse\nLook\nCTRL\nCrouch\nShift\nRun\nRMB/LMB\nUse Camera\nE\nInteract\nC\nChat\nV\nVoice Chat\nX\nSpectate\n\n\nStatus\nReleased\nPlatforms\nWindows, macOS, Android\nRating\nRated 4.5 out of 5 stars\n\n(128total ratings)\nAuthor\nHorror Ponds\nGenre\nAdventure\nMade with\nUnity, Adobe Photoshop, Substance Painter & designer\nTags\n3D, anomaly, First-Person, Horror, Multiplayer, Psychological Horror, Scary, Short, Singleplayer, Survival Horror\nAverage session\nAbout a half-hour\nLanguages\nArabic, German, English, Spanish; Latin America, French, Hebrew (modern), Indonesian, Italian, Japanese, Korean, Polish, Portuguese (Brazil), Russian, Thai, Turkish, Ukrainian, Vietnamese, Chinese (Simplified)\nInputs\nKeyboard, Mouse\nMultiplayer\nServer-based networked multiplayer\nContent\nNo generative AI was used",
+        "video_url": "https://youtu.be/TNosnXWWkWU?si=PXOApuBvS1lMUR_k",
+        "donate_url": "",
+        "socials": {
+            "facebook": "",
+            "discord": "",
+            "website": "https://www.youtube.com/@horror_ponds"
+        },
+        "exe_path": "Cursed Apartment.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/cursed_apartment_cover.png",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_cursed_apartment_1_0_0/cursed_apartment.zip",
+        "size": 492.85
     }
 ]
