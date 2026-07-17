@@ -52,5 +52,23 @@
         "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/cursed_apartment_cover.png",
         "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_cursed_apartment_1_0_0/cursed_apartment.zip",
         "size": 492.85
+    },
+    {
+        "id": "zoomies_cat_racing",
+        "name": "Zoomies Cat Racing",
+        "developer": "Scarlet Games",
+        "version": "0.9.90",
+        "description": "Description\n🎮 Welcome to the ultimate adrenaline-fueled gaming experience: Zoomies: Cat Racing– the purrfect fusion of speed, feline fierceness, and multiplayer mayhem! 🐾\nEmbark on a heart-pounding racing adventure as you immerse yourself in the captivating world of Cat Racing! Feel the thrill of the wind in your fur as you dash through various exhilarating tracks, each with its own twists, turns, and jaw-dropping surprises. \n🐱 Choose from a motley crew of feisty feline racers, each with their own unique personality and stats. From the turbo Tabby cat to the Persian powerhouse, there's a choice for every racing style!\nBut why settle for racing alone when you can unleash the competitive beast within? Zoomies boasts a multiplayer feature, allowing you to go whisker-to-whisker against friends!\nSo why wait? Follow today and see if you have what it takes to be the top cat on the track!\nFeatures\n6 wacky, unique tracks\n9 unique cat breeds to race as\nCloud-Based Multiplayer\nGamepad Support\nCheat Codes\n--\nMultiplayer is currently ENABLED in the demo! Try it with your friends!\nZoomies has been developed using an Xbox game controller so playing with a gamepad is HIGHLY recommended!\n\n\n⚠️ AI Notice⚠️\nLike any craft, game development involves choosing the right tools. Alongside traditional methods, I have used AI tools to help with coding and localization. I have NOT used generative AI for art assets.\nMore information\n\nStatus\nIn development\nPlatforms\nWindows\nRating\nRated 4.5 out of 5 stars\n\n(60total ratings)\nAuthor\nScarlet Games\nGenre\nRacing\nMade with\nUnity\nTags\n3D, Cartoon, Cats, Comedy, Difficult, Fast-Paced, Funny, Multiplayer, Unity\nAverage session\nAbout an hour\nLanguages\nEnglish\nInputs\nKeyboard, Mouse, Xbox controller, Gamepad (any), Playstation controller\nMultiplayer\nAd-hoc networked multiplayer\nLinks\nTwitter/X\nAI Disclosure\nAI Assisted, Code, Text",
+        "video_url": "",
+        "donate_url": "",
+        "socials": {
+            "facebook": "",
+            "discord": "",
+            "website": "https://bsky.app/profile/scarletgames.bsky.social"
+        },
+        "exe_path": "Zoomies Cat Racing.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/zoomies_cat_racing_cover.png",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_zoomies_cat_racing_0_9_90/zoomies_cat_racing.zip",
+        "size": 578.47
     }
 ]
