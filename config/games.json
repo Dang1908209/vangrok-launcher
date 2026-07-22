@@ -99,14 +99,14 @@
         "release_type": "Chinh thuc (Full Release)",
         "price": 0.0,
         "description": "A horror survival game where you, as urban explorers, find yourselves trapped and must solve interconnected puzzles to escape the subway station.\nThink quickly and communicate carefully through limited means, to survive the sound-sensitive creature roaming these daunting corridors.\nGenres: Multiplayer, Survival Horror, Puzzle/ Co-op\nPlatform: PC\n4 players are needed for the best expirience, can be completed with 2(but will be hardcore)\nGame session length: ~40 minutes\n\n\nRoles: \nRebecca Mertlich Gameplay Director\nMichael Karakantas Art Director\nDaniel Velitskiy  Game Designer, Level Designer, Production Manager\nTim Richter Programmer\nTimo Marzinzik Environment Artist, Monster Programmer\nJessica Kohrmann Tech Artist, Production Manager\n\n\nLeevi Knorr Score Composer\nSwaantje Krüger SFX Designer",
-        "sys_req_min": "Windows 10 64-bit",
+        "sys_req_min": "",
         "sys_req_rec": "",
         "video_url": "https://youtu.be/SFs7-SYTqT0?si=ZQ20Sy6H-1dwX6mO",
         "donate_url": "",
         "socials": {
             "facebook": "",
             "discord": "",
-            "website": "https://www.linkedin.com/in/daniel-velitskiy-5567362a3/?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app"
+            "website": "https://limestudio.itch.io/"
         },
         "exe_path": "Unheard Scream.exe",
         "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/unheard_scream_cover.png",
@@ -115,6 +115,6 @@
             "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/screenshots/unheard_scream_scr_2.png"
         ],
         "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_unheard_scream_1_0_0/unheard_scream.zip",
-        "size": 0.29
+        "size": 508.01
     }
 ]
