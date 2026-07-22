@@ -52,5 +52,69 @@
         "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/cursed_apartment_cover.png",
         "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_cursed_apartment_1_0_0/cursed_apartment.zip",
         "size": 492.85
+    },
+    {
+        "id": "zoomies_cat_racing",
+        "name": "Zoomies Cat Racing",
+        "developer": "Scarlet Games",
+        "version": "0.9.90",
+        "description": "Description\n🎮 Welcome to the ultimate adrenaline-fueled gaming experience: Zoomies: Cat Racing– the purrfect fusion of speed, feline fierceness, and multiplayer mayhem! 🐾\nEmbark on a heart-pounding racing adventure as you immerse yourself in the captivating world of Cat Racing! Feel the thrill of the wind in your fur as you dash through various exhilarating tracks, each with its own twists, turns, and jaw-dropping surprises. \n🐱 Choose from a motley crew of feisty feline racers, each with their own unique personality and stats. From the turbo Tabby cat to the Persian powerhouse, there's a choice for every racing style!\nBut why settle for racing alone when you can unleash the competitive beast within? Zoomies boasts a multiplayer feature, allowing you to go whisker-to-whisker against friends!\nSo why wait? Follow today and see if you have what it takes to be the top cat on the track!\nFeatures\n6 wacky, unique tracks\n9 unique cat breeds to race as\nCloud-Based Multiplayer\nGamepad Support\nCheat Codes\n--\nMultiplayer is currently ENABLED in the demo! Try it with your friends!\nZoomies has been developed using an Xbox game controller so playing with a gamepad is HIGHLY recommended!\n\n\n⚠️ AI Notice⚠️\nLike any craft, game development involves choosing the right tools. Alongside traditional methods, I have used AI tools to help with coding and localization. I have NOT used generative AI for art assets.\nMore information\n\nStatus\nIn development\nPlatforms\nWindows\nRating\nRated 4.5 out of 5 stars\n\n(60total ratings)\nAuthor\nScarlet Games\nGenre\nRacing\nMade with\nUnity\nTags\n3D, Cartoon, Cats, Comedy, Difficult, Fast-Paced, Funny, Multiplayer, Unity\nAverage session\nAbout an hour\nLanguages\nEnglish\nInputs\nKeyboard, Mouse, Xbox controller, Gamepad (any), Playstation controller\nMultiplayer\nAd-hoc networked multiplayer\nLinks\nTwitter/X\nAI Disclosure\nAI Assisted, Code, Text",
+        "video_url": "",
+        "donate_url": "",
+        "socials": {
+            "facebook": "",
+            "discord": "",
+            "website": "https://bsky.app/profile/scarletgames.bsky.social"
+        },
+        "exe_path": "Zoomies Cat Racing.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/zoomies_cat_racing_cover.png",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_zoomies_cat_racing_0_9_90/zoomies_cat_racing.zip",
+        "size": 578.47
+    },
+    {
+        "id": "bombanana!",
+        "name": "BOMBANANA!",
+        "developer": "Lefto Studio",
+        "version": "1.0.0",
+        "description": "Bạn là một đội gỡ bom gồm 3 người chơi với ba con khỉ: khỉ mù, khỉ điếc và khỉ câm. Bên trong chiếc xe tải nhỏ được cải tạo thành xưởng bom di động, bạn phải gỡ bom trước khi chúng phát nổ với thời gian và khả năng giao tiếp bị giới hạn!",
+        "video_url": "https://www.youtube.com/watch?v=uzyf7Gimams&t=3s",
+        "donate_url": "",
+        "socials": {
+            "facebook": "",
+            "discord": "",
+            "website": ""
+        },
+        "exe_path": "BOMBANANA.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/bombanana!_cover.jpg",
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_bombanana%21_1_0_0/bombanana.zip",
+        "size": 70.77
+    },
+    {
+        "id": "unheard_scream",
+        "name": "Unheard Scream",
+        "developer": "LimeStudio",
+        "version": "1.0.0",
+        "genre": "Kinh Di (Horror)",
+        "age_rating": "Moi lua tuoi (Everyone)",
+        "release_type": "Chinh thuc (Full Release)",
+        "price": 0.0,
+        "description": "A horror survival game where you, as urban explorers, find yourselves trapped and must solve interconnected puzzles to escape the subway station.\nThink quickly and communicate carefully through limited means, to survive the sound-sensitive creature roaming these daunting corridors.\nGenres: Multiplayer, Survival Horror, Puzzle/ Co-op\nPlatform: PC\n4 players are needed for the best expirience, can be completed with 2(but will be hardcore)\nGame session length: ~40 minutes\n\n\nRoles: \nRebecca Mertlich Gameplay Director\nMichael Karakantas Art Director\nDaniel Velitskiy  Game Designer, Level Designer, Production Manager\nTim Richter Programmer\nTimo Marzinzik Environment Artist, Monster Programmer\nJessica Kohrmann Tech Artist, Production Manager\n\n\nLeevi Knorr Score Composer\nSwaantje Krüger SFX Designer",
+        "sys_req_min": "Windows 10 64-bit",
+        "sys_req_rec": "",
+        "video_url": "https://youtu.be/SFs7-SYTqT0?si=ZQ20Sy6H-1dwX6mO",
+        "donate_url": "",
+        "socials": {
+            "facebook": "",
+            "discord": "",
+            "website": "https://www.linkedin.com/in/daniel-velitskiy-5567362a3/?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app"
+        },
+        "exe_path": "Unheard Scream.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/unheard_scream_cover.png",
+        "screenshots": [
+            "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/screenshots/unheard_scream_scr_1.png",
+            "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/screenshots/unheard_scream_scr_2.png"
+        ],
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_unheard_scream_1_0_0/unheard_scream.zip",
+        "size": 0.29
     }
 ]
