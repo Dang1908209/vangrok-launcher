@@ -116,5 +116,32 @@
         ],
         "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_unheard_scream_1_0_0/unheard_scream.zip",
         "size": 508.01
+    },
+    {
+        "id": "high_walk",
+        "name": "High Walk",
+        "developer": "koro.games, pe4Q07, liberato, IRoRoI, filgreen3, Fluidios, SandroDK",
+        "version": "1.0.0",
+        "genre": "Simulation",
+        "age_rating": "Everyone",
+        "release_type": "Full Release",
+        "price": 0.0,
+        "description": "Wake up on a high platform over roofs of skyscrapers. Your goal is to reach the suitcase with a million dollars. And stay alive in the process. Fight intense frost and keep balance walking on ropes.\n\n￼\nSeveral platforms have heaters to keep you warm. But to activate one you will have to pass a password to your dumbass mate via diffrent ways of communication. Siren speaker, Morse code or even a simple paper plane - use anything to get your message delivered and activate the heater!\n\n\nGame features complex communication\n\nproximity chat with environmental changes\nspeaker that delivers your voice on long distance\nlight switches, to communicate even in heavy wind\npaper planes to deliver notes\n\n￼\n\n\n\nYou can play with your friends online or over your local network; on a private server or on a random public one.\n\nAuthors\nfilgreen3  direction\npe4Q07 gamedesign/soundesign/direction\nliberato code/map generator\nfememism gamedesign/trailer\nfluidios voice chat/multiplayer\nSandroDK models/animations\nIroRoI code/animations\nWe used some of free assets created by talanted people all over the internet. See Credits spreadsheet\n\n\nMore information\n\nStatus\nPrototype\nPlatforms\nWindows, macOS, Linux\nRating\nRated 4.6 out of 5 stars\n\n(90total ratings)\nAuthors\nkoro.games, pe4Q07, liberato, IRoRoI, filgreen3, Fluidios, SandroDK\nGenre\nSimulation, Survival\nTags\nAtmospheric, Co-op, Exploration, First-Person, Horror, Liminal space, Multiplayer, Psychological Horror\nAverage session\nAbout a half-hour\nLanguages\nEnglish\nInputs\nKeyboard, Mouse\nMultiplayer\nLocal multiplayer, Server-based networked multiplayer, Ad-hoc networked multiplayer\nPlayer count\n1 - 10\nContent\nNo generative AI was used",
+        "sys_req_min": "",
+        "sys_req_rec": "",
+        "video_url": "https://youtu.be/kjSs0ZzrMu0?si=0MvzRw-jvznD_Jf1",
+        "donate_url": "",
+        "socials": {
+            "facebook": "",
+            "discord": "",
+            "website": "https://x.com/pe4Q07"
+        },
+        "exe_path": "HIGH WALK.exe",
+        "cover": "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/covers/high_walk_cover.png",
+        "screenshots": [
+            "https://raw.githubusercontent.com/Dang1908209/vangrok-launcher/main/assets/screenshots/high_walk_scr_1.png"
+        ],
+        "download_url": "https://github.com/Dang1908209/vangrok-launcher/releases/download/v_high_walk_1_0_0/high_walk.zip",
+        "size": 130.43
     }
 ]
